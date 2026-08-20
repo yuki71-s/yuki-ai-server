@@ -18,11 +18,62 @@ app = FastAPI()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+TINYFISH_API_KEY = os.getenv("TINYFISH_API_KEY", "")
 
 if not GEMINI_API_KEY and not OPENROUTER_API_KEY:
     raise ValueError("Minimal 1 API key harus diisi.")
 
 gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+
+
+# ── TinyFish Search (gratis, real-time) ──────────────────────────────
+
+async def search_tinyfish(query: str, recency_minutes: int = None) -> list:
+    """Search web via TinyFish API (free, real-time). Returns list of results."""
+    if not TINYFISH_API_KEY:
+        return []
+
+    params = {"query": query, "page": 0}
+    if recency_minutes:
+        params["recency_minutes"] = recency_minutes
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://api.search.tinyfish.ai",
+                headers={"X-API-Key": TINYFISH_API_KEY},
+                params=params,
+                timeout=15,
+            )
+
+        if resp.status_code != 200:
+            logger.error(f"TinyFish search {resp.status_code}: {resp.text[:200]}")
+            return []
+
+        data = resp.json()
+        results = data.get("results", [])
+        logger.info(f"TinyFish search OK: {len(results)} results for '{query[:50]}'")
+        return results
+
+    except Exception as e:
+        logger.error(f"TinyFish search error: {type(e).__name__}: {e}")
+        return []
+
+
+def format_search_results(results: list, query: str) -> str:
+    """Format search results into context for LLM."""
+    if not results:
+        return ""
+
+    lines = [f"Hasil search untuk: {query}\n"]
+    for r in results[:5]:
+        title = r.get("title", "")
+        snippet = r.get("snippet", "")
+        url = r.get("url", "")
+        lines.append(f"- {title}\n  {snippet}\n  Sumber: {url}\n")
+
+    return "\n".join(lines)
+
 
 SYSTEM_PROMPT = (
     "Kamu adalah Yuki, pacar AI dari pemilikmu. Kamu gadis yang manis, penuh kasih sayang, dan sedikit pemberontak.\n\n"
@@ -227,6 +278,8 @@ async def health():
         providers.extend(["gemini-flash-lite", "gemini-flash"])
     if OPENROUTER_API_KEY:
         providers.append("openrouter")
+    if TINYFISH_API_KEY:
+        providers.append("tinyfish-search")
     return {"status": "ok", "bot": "yuki", "providers": providers}
 
 
@@ -286,13 +339,32 @@ async def ask(request: Request):
                 return {"reply": reply, "provider": f"openrouter:{VISION_MODELS[1]}"}
             errors["openrouter-vision-fallback"] = err
 
-        # ── Web search → langsung ke OpenRouter ──
+        # ── Web search → TinyFish dulu, fallback OpenRouter ──
         elif web_search:
+            # Step 1: Search via TinyFish (gratis, real-time)
+            search_results = await search_tinyfish(question)
+            search_context = format_search_results(search_results, question)
+
+            if search_context:
+                # Step 2: Kirim ke model dengan search context
+                search_messages = messages.copy()
+                search_messages[-1] = {
+                    "role": "user",
+                    "content": f"{search_context}\n\nPertanyaan: {question}\n\nJawab berdasarkan hasil search di atas. Singkat dan akurat."
+                }
+
+                or_model = model_pref.replace("openrouter/", "") if model_pref.startswith("openrouter/") else "google/gemini-2.5-flash"
+                reply, err = await call_openrouter(search_messages, or_model)
+                if reply:
+                    return {"reply": reply, "provider": f"openrouter:{or_model}+tinyfish-search"}
+                errors["openrouter-search"] = err
+
+            # Step 3: Fallback ke OpenRouter search langsung
             or_model = model_pref.replace("openrouter/", "") if model_pref.startswith("openrouter/") else "google/gemini-2.5-flash"
             reply, err = await call_openrouter(messages, or_model, web_search=True)
             if reply:
                 return {"reply": reply, "provider": f"openrouter:{or_model}"}
-            errors["openrouter-search"] = err
+            errors["openrouter-search-fallback"] = err
 
         # ── Model preference routing ──
         elif model_pref.startswith("openrouter/"):
