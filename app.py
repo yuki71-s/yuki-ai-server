@@ -346,12 +346,21 @@ async def ask(request: Request):
             search_context = format_search_results(search_results, question)
 
             if search_context:
-                # Step 2: Kirim ke Gemini 3.1 Flash Lite (gratis)
+                # Step 2: Kirim ke Gemini (gratis) + retry
                 search_messages = [{"role": "user", "content": f"{search_context}\n\nPertanyaan: {question}\n\nJawab berdasarkan hasil search di atas. Singkat, akurat, dan dalam karakter Yuki."}]
-                reply, err = await call_gemini_flash_lite(search_messages)
+                for attempt in range(2):
+                    reply, err = await call_gemini_flash_lite(search_messages)
+                    if reply:
+                        return {"reply": reply, "provider": "gemini-3.1-flash-lite+tinyfish-search"}
+                    errors[f"gemini-search-attempt{attempt+1}"] = err
+                    if attempt == 0:
+                        await asyncio.sleep(2)  # retry setelah 2 detik
+
+                # Step 2b: Fallback ke Gemini 3.6 Flash (juga gratis)
+                reply, err = await call_gemini_flash(search_messages)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+tinyfish-search"}
-                errors["gemini-search"] = err
+                    return {"reply": reply, "provider": "gemini-3.6-flash+tinyfish-search"}
+                errors["gemini-flash-search"] = err
 
             # Step 3: Fallback ke OpenRouter search
             or_model = model_pref.replace("openrouter/", "") if model_pref.startswith("openrouter/") else "google/gemini-2.5-flash"
