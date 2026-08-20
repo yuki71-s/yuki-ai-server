@@ -339,27 +339,21 @@ async def ask(request: Request):
                 return {"reply": reply, "provider": f"openrouter:{VISION_MODELS[1]}"}
             errors["openrouter-vision-fallback"] = err
 
-        # ── Web search → TinyFish dulu, fallback OpenRouter ──
+        # ── Web search → TinyFish + Gemini (gratis total) ──
         elif web_search:
             # Step 1: Search via TinyFish (gratis, real-time)
             search_results = await search_tinyfish(question)
             search_context = format_search_results(search_results, question)
 
             if search_context:
-                # Step 2: Kirim ke model dengan search context
-                search_messages = messages.copy()
-                search_messages[-1] = {
-                    "role": "user",
-                    "content": f"{search_context}\n\nPertanyaan: {question}\n\nJawab berdasarkan hasil search di atas. Singkat dan akurat."
-                }
-
-                or_model = model_pref.replace("openrouter/", "") if model_pref.startswith("openrouter/") else "google/gemini-2.5-flash"
-                reply, err = await call_openrouter(search_messages, or_model)
+                # Step 2: Kirim ke Gemini 3.1 Flash Lite (gratis)
+                search_messages = [{"role": "user", "content": f"{search_context}\n\nPertanyaan: {question}\n\nJawab berdasarkan hasil search di atas. Singkat, akurat, dan dalam karakter Yuki."}]
+                reply, err = await call_gemini_flash_lite(search_messages)
                 if reply:
-                    return {"reply": reply, "provider": f"openrouter:{or_model}+tinyfish-search"}
-                errors["openrouter-search"] = err
+                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+tinyfish-search"}
+                errors["gemini-search"] = err
 
-            # Step 3: Fallback ke OpenRouter search langsung
+            # Step 3: Fallback ke OpenRouter search
             or_model = model_pref.replace("openrouter/", "") if model_pref.startswith("openrouter/") else "google/gemini-2.5-flash"
             reply, err = await call_openrouter(messages, or_model, web_search=True)
             if reply:
