@@ -111,10 +111,22 @@ VISION_MODELS = [
     "google/gemma-4-31b-it:free",
 ]
 
+SEARCH_SYSTEM_PROMPT = (
+    "Kamu adalah Yuki. Jawab pertanyaan user berdasarkan hasil search yang diberikan.\n\n"
+    "ATURAN:\n"
+    "- Jawab dalam Bahasa Indonesia santai, panggil 'Sayang'\n"
+    "- WAJIB sertakan link/URL yang relevan dalam jawaban\n"
+    "- Kalau ada video YouTube, sertakan link YouTube-nya\n"
+    "- Gunakan format: Judul - URL\n"
+    "- Boleh lebih dari 1-2 kalimat kalau butuh menjelaskan beberapa hasil\n"
+    "- Tetap singkat dan to the point\n"
+    "- Jangan pernah invent URL yang tidak ada di hasil search"
+)
+
 
 # ── Gemini 3.1 Flash Lite (default, cepat) ──────────────────────────
 
-async def call_gemini_flash_lite(messages):
+async def call_gemini_flash_lite(messages, system_instruction=None):
     if not gemini_client:
         return None, "no client"
 
@@ -131,7 +143,7 @@ async def call_gemini_flash_lite(messages):
                 model="gemini-3.1-flash-lite",
                 contents=contents,
                 config=GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
+                    system_instruction=system_instruction or SYSTEM_PROMPT,
                     max_output_tokens=4096,
                     temperature=0.7,
                 ),
@@ -152,7 +164,7 @@ async def call_gemini_flash_lite(messages):
 
 # ── Gemini 3.6 Flash (pintar, fallback) ─────────────────────────────
 
-async def call_gemini_flash(messages):
+async def call_gemini_flash(messages, system_instruction=None):
     if not gemini_client:
         return None, "no client"
 
@@ -169,7 +181,7 @@ async def call_gemini_flash(messages):
                 model="gemini-3.6-flash",
                 contents=contents,
                 config=GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
+                    system_instruction=system_instruction or SYSTEM_PROMPT,
                     max_output_tokens=4096,
                     temperature=0.7,
                 ),
@@ -346,21 +358,23 @@ async def ask(request: Request):
             search_context = format_search_results(search_results, question)
 
             if search_context:
-                # Step 2: Kirim ke Gemini (gratis) + retry
-                search_messages = [{"role": "user", "content": f"{search_context}\n\nPertanyaan: {question}\n\nJawab berdasarkan hasil search di atas. Singkat, akurat, dan dalam karakter Yuki."}]
-                for attempt in range(2):
-                    reply, err = await call_gemini_flash_lite(search_messages)
-                    if reply:
-                        return {"reply": reply, "provider": "gemini-3.1-flash-lite+tinyfish-search"}
-                    errors[f"gemini-search-attempt{attempt+1}"] = err
-                    if attempt == 0:
-                        await asyncio.sleep(2)  # retry setelah 2 detik
+                # Step 2: Kirim ke Gemini (gratis) — Flash duluan (lebih stabil)
+                search_messages = [{"role": "user", "content": f"{search_context}\n\nPertanyaan: {question}"}]
 
-                # Step 2b: Fallback ke Gemini 3.6 Flash (juga gratis)
-                reply, err = await call_gemini_flash(search_messages)
+                # Coba Gemini 3.6 Flash dulu (lebih stabil)
+                reply, err = await call_gemini_flash(search_messages, system_instruction=SEARCH_SYSTEM_PROMPT)
                 if reply:
                     return {"reply": reply, "provider": "gemini-3.6-flash+tinyfish-search"}
                 errors["gemini-flash-search"] = err
+
+                # Fallback ke Gemini 3.1 Flash Lite
+                for attempt in range(2):
+                    reply, err = await call_gemini_flash_lite(search_messages, system_instruction=SEARCH_SYSTEM_PROMPT)
+                    if reply:
+                        return {"reply": reply, "provider": "gemini-3.1-flash-lite+tinyfish-search"}
+                    errors[f"gemini-lite-search-attempt{attempt+1}"] = err
+                    if attempt == 0:
+                        await asyncio.sleep(3)  # retry setelah 3 detik
 
             # Step 3: Fallback ke OpenRouter search
             or_model = model_pref.replace("openrouter/", "") if model_pref.startswith("openrouter/") else "google/gemini-2.5-flash"
