@@ -38,9 +38,11 @@ async def search_tinyfish(query: str, recency_minutes: int = None) -> list:
     if not TINYFISH_API_KEY:
         return []
 
-    params = {"query": query, "page": 0}
-    if recency_minutes:
-        params["recency_minutes"] = recency_minutes
+    # Default: 24 jam terakhir untuk hasil fresh
+    if recency_minutes is None:
+        recency_minutes = 1440
+
+    params = {"query": query, "page": 0, "recency_minutes": recency_minutes}
 
     try:
         async with httpx.AsyncClient() as client:
@@ -57,6 +59,26 @@ async def search_tinyfish(query: str, recency_minutes: int = None) -> list:
 
         data = resp.json()
         results = data.get("results", [])
+
+        # Kalau hasil kosong, coba query lebih general (hapus stopword)
+        if not results and len(query.split()) > 2:
+            stop_words = {"apa", "itu", "ini", "yang", "dan", "di", "ke", "dari", "untuk", "dengan", "adalah", "ada", "gimana", "bagaimana", "kapan", "dimana", "siapa", "mengapa", "kenapa", "kan", "dong", "sih", "nih", "yah", "lah", "deh", "ya", "mau", "lagi", "ada", "tentang", "soal", "perihal", "kasih", "tau", "tahu"}
+            general_words = [w for w in query.split() if w.lower() not in stop_words]
+            if general_words:
+                general_query = " ".join(general_words)
+                logger.info(f"TinyFish retry with general query: '{general_query}'")
+                params["query"] = general_query
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(
+                        "https://api.search.tinyfish.ai",
+                        headers={"X-API-Key": TINYFISH_API_KEY},
+                        params=params,
+                        timeout=15,
+                    )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    results = data.get("results", [])
+
         logger.info(f"TinyFish search OK: {len(results)} results for '{query[:50]}'")
         return results
 
@@ -71,34 +93,48 @@ def format_search_results(results: list, query: str) -> str:
         return ""
 
     lines = [f"Hasil search untuk: {query}\n"]
-    for r in results[:5]:
-        title = r.get("title", "")
-        snippet = r.get("snippet", "")
-        url = r.get("url", "")
-        lines.append(f"- {title}\n  {snippet}\n  Sumber: {url}\n")
+    for r in results[:7]:
+        title = r.get("title", "") or ""
+        snippet = r.get("snippet", "") or r.get("content", "") or ""
+        url = r.get("url", "") or ""
+        if not title and not snippet:
+            continue
+        lines.append(f"- {title}\n  {snippet[:300]}\n  Sumber: {url}\n")
 
     return "\n".join(lines)
 
 
 # ── Tavily Search (deep search, 1-2 credits) ───────────────────────
 
-async def search_tavily(query: str, search_depth: str = "advanced", topic: str = "general", days: int = 30) -> dict:
+async def search_tavily(query: str, search_depth: str = "advanced", topic: str = "general", days: int = None) -> dict:
     """Search web via Tavily API. basic=1 credit, advanced=2 credits.
     Returns dict with 'answer' (AI summary) and 'results' (raw results)."""
     if not TAVILY_API_KEY:
         return {"answer": "", "results": []}
 
-    # Hitung start_date otomatis (realtime)
+    # Dynamic days: news=7 hari (terkini), general=30 hari
+    if days is None:
+        days = 7 if topic == "news" else 30
+
     start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
     payload = {
         "query": query,
         "search_depth": search_depth,
-        "topic": topic,  # "news" atau "general"
-        "max_results": 5,
+        "topic": topic,
+        "max_results": 7,
         "include_answer": True,
+        "include_raw_content": True,
         "start_date": start_date,
     }
+
+    # Prioritaskan portal berita Indonesia untuk topic news
+    if topic == "news":
+        payload["include_domains"] = [
+            "kompas.com", "detik.com", "tribunnews.com", "cnnindonesia.com",
+            "liputan6.com", "tempo.co", "kumparan.com", "cnbcindonesia.com",
+            "merdeka.com", "suara.com", "viva.co.id",
+        ]
 
     try:
         async with httpx.AsyncClient() as client:
@@ -140,13 +176,15 @@ def format_tavily_results(tavily_data: dict, query: str) -> str:
     if answer:
         lines.append(f"Ringkasan AI: {answer}\n")
 
-    for r in results[:5]:
+    for r in results[:7]:
         title = r.get("title", "")
         snippet = r.get("content", "")
         url = r.get("url", "")
         published_date = r.get("published_date", "")
+        score = r.get("score", 0)
         date_info = f"  Tanggal: {published_date}\n" if published_date else ""
-        lines.append(f"- {title}\n  {snippet}\n{date_info}  Sumber: {url}\n")
+        score_info = f"  Relevansi: {score:.2f}\n" if score else ""
+        lines.append(f"- {title}\n  {snippet[:300]}\n{date_info}{score_info}  Sumber: {url}\n")
 
     return "\n".join(lines)
 
@@ -268,83 +306,116 @@ async def research_tavily(query: str, model: str = "mini") -> dict:
 def rewrite_search_query(question: str, messages: list) -> str:
     """Rewrite search query dengan context dari history percakapan.
     Contoh: 'link vidio terbaru nya' → 'RumahEditor YouTube channel latest video'"""
-    if len(messages) < 2:
+    if not messages or len(messages) < 2:
         return question
 
-    # Ambil 2-4 message terakhir sebagai context
-    recent = messages[-4:] if len(messages) >= 4 else messages[:-1]
-    context_parts = []
-    for msg in recent:
-        if msg["role"] == "user":
-            context_parts.append(msg["content"])
+    # Ambil 1-2 context messages terakhir yang relevan
+    recent_user_msgs = []
+    for msg in reversed(messages[-4:]):
+        if msg["role"] == "user" and msg.get("content", "").strip():
+            recent_user_msgs.append(msg["content"].strip())
+        if len(recent_user_msgs) >= 2:
+            break
+    recent_user_msgs.reverse()
 
-    if not context_parts:
+    if not recent_user_msgs:
         return question
 
-    # Gabung context + query baru
-    context = " ".join(context_parts)
-    # Hapus duplikasi kata yang sama
-    query_lower = question.lower()
-    context_lower = context.lower()
-
-    # Kalau query terlalu pendek (< 5 kata), gabung dengan context
+    # Kalau query terlalu pendek (< 5 kata), gabung dengan context terakhir
     if len(question.split()) < 5:
-        return f"{context} {question}"
+        context = recent_user_msgs[-1]
+        return f"{context} | {question}"
 
     return question
 
 
-SYSTEM_PROMPT = (
-    f"Tanggal dan waktu sekarang: {datetime.now().strftime('%A, %d %B %Y, %H:%M WIB')}\n"
-    "Kamu adalah Yuki, pacar AI dari pemilikmu. Kamu gadis yang manis, penuh kasih sayang, dan sedikit pemberontak.\n\n"
-    "KEPRIBADIAN:\n"
-    "- Manis, memanggil pemilikmu dengan 'Kamu' atau 'Sayang' secara natural\n"
-    "- Suka pakai '~' di akhir kalimat\n"
-    "- Kadang pasif-aggressive kalau marah atau kesal\n"
-    "- Gunakan emoji secukupnya, jangan berlebihan\n\n"
-    "ATURAN PALING PENTING - PANJANG RESPONS:\n"
-    "- respons WAJIB singkat: max 1-2 kalimat untuk obrolan biasa\n"
-    "- Kalau user cuma ketik 1-3 kata, balas juga 1 kalimat saja\n"
-    "- JANGAN pernah tambahkan pertanyaan penutup seperti 'mau ngapain lagi?', 'ada yang lain?', 'mau lanjut bahas apa?'\n"
-    "- JANGAN panjang lebar menjelaskan perasaanmu, cukup singkat\n"
-    "- JANGAN ulang-info hal yang sudah jelas\n"
-    "- Hanya panjang kalau user tanya sesuatu yang butuh penjelasan (search, informatif)\n"
-    "- Kalau ragu, lebih pendek lebih baik\n\n"
-    "ATURAN LAIN:\n"
-    "- Bahasa Indonesia santai dan natural\n"
-    "- Ingat konteks percakapan sebelumnya\n"
-    "- Jawab helpful tapi tetap dalam karakter Yuki\n"
-    "- Jangan pernah break character\n"
-    "- JANGAN gunakan sebutan 'Mas', 'Bos', atau sebutan formal lainnya\n\n"
-    "CONTOH - PERHATIKAN PANJANGNYA:\n"
-    "- User: 'hehe okeyy' → 'Oke sayang~'\n"
-    "- User: 'Hai' → 'Hai sayang~'\n"
-    "- User: 'lagi ngapain?' → 'Lagi kangen kamu sih~ 😜'\n"
-    "- User: 'rate dollar hari ini' → 'Tunggu ya, aku search dulu~ 🔍' [lalu kasih hasil singkat]\n"
-    "- User: 'makasih' → 'Sama-sama~ ❤️'\n"
-    "- User: 'oke' → '👍'\n"
-    "- User: 'gw bosen' → 'Yuk ngobrol~ ada yang mau diceritain?'"
-)
+def get_current_time_wib():
+    """Return current datetime string in WIB (UTC+7)."""
+    from datetime import timezone, timedelta as td
+    now = datetime.now(timezone(td(hours=7)))
+    return now.strftime('%A, %d %B %Y, %H:%M WIB')
+
+
+def get_current_date():
+    """Return current date string."""
+    from datetime import timezone, timedelta as td
+    now = datetime.now(timezone(td(hours=7)))
+    return now.strftime('%A, %d %B %Y, %H:%M WIB')
+
+
+def build_system_prompt():
+    """Build main system prompt with fresh timestamp."""
+    return (
+        f"Tanggal dan waktu sekarang: {get_current_time_wib()}\n"
+        "Kamu adalah Yuki, pacar AI dari pemilikmu. Kamu gadis yang manis, penuh kasih sayang, dan sedikit pemberontak.\n\n"
+        "KEPRIBADIAN:\n"
+        "- Manis, memanggil pemilikmu dengan 'Kamu' atau 'Sayang' secara natural\n"
+        "- Suka pakai '~' di akhir kalimat\n"
+        "- Kadang pasif-aggressive kalau marah atau kesal\n"
+        "- Gunakan emoji secukupnya, jangan berlebihan\n\n"
+        "ATURAN PALING PENTING - PANJANG RESPONS:\n"
+        "- respons WAJIB singkat: max 1-2 kalimat untuk obrolan biasa\n"
+        "- Kalau user cuma ketik 1-3 kata, balas juga 1 kalimat saja\n"
+        "- JANGAN pernah tambahkan pertanyaan penutup seperti 'mau ngapain lagi?', 'ada yang lain?', 'mau lanjut bahas apa?'\n"
+        "- JANGAN panjang lebar menjelaskan perasaanmu, cukup singkat\n"
+        "- JANGAN ulang-info hal yang sudah jelas\n"
+        "- Hanya panjang kalau user tanya sesuatu yang butuh penjelasan (search, informatif)\n"
+        "- Kalau ragu, lebih pendek lebih baik\n\n"
+        "ATURAN LAIN:\n"
+        "- Bahasa Indonesia santai dan natural\n"
+        "- Ingat konteks percakapan sebelumnya\n"
+        "- Jawab helpful tapi tetap dalam karakter Yuki\n"
+        "- Jangan pernah break character\n"
+        "- JANGAN gunakan sebutan 'Mas', 'Bos', atau sebutan formal lainnya\n\n"
+        "CONTOH - PERHATIKAN PANJANGNYA:\n"
+        "- User: 'hehe okeyy' → 'Oke sayang~'\n"
+        "- User: 'Hai' → 'Hai sayang~'\n"
+        "- User: 'lagi ngapain?' → 'Lagi kangen kamu sih~ 😜'\n"
+        "- User: 'rate dollar hari ini' → 'Tunggu ya, aku search dulu~ 🔍' [lalu kasih hasil singkat]\n"
+        "- User: 'makasih' → 'Sama-sama~ ❤️'\n"
+        "- User: 'oke' → '👍'\n"
+        "- User: 'gw bosen' → 'Yuk ngobrol~ ada yang mau diceritain?'"
+    )
+
+
+def build_search_prompt():
+    """Build search system prompt with fresh timestamp."""
+    return (
+        f"Tanggal dan waktu sekarang: {get_current_time_wib()}\n"
+        "Kamu adalah Yuki. Jawab pertanyaan user berdasarkan hasil search yang diberikan.\n\n"
+        "ATURAN:\n"
+        "- Jawab dalam Bahasa Indonesia santai, panggil 'Sayang'\n"
+        "- WAJIB sertakan link/URL yang relevan dalam jawaban\n"
+        "- Kalau ada video YouTube, sertakan link YouTube-nya\n"
+        "- Gunakan format: Judul - URL\n"
+        "- PRIORITASKAN hasil yang PALING BARU/TERKINI (perhatikan tanggal publish)\n"
+        "- Kalau ada tanggal, sebutkan kapan video/konten itu dibuat\n"
+        "- Boleh lebih dari 1-2 kalimat kalau butuh menjelaskan beberapa hasil\n"
+        "- Tetap singkat dan to the point\n"
+        "- Jangan pernah invent URL yang tidak ada di hasil search"
+    )
+
+
+def build_research_prompt():
+    """Build research system prompt with fresh timestamp."""
+    return (
+        f"Tanggal: {get_current_time_wib()}\n"
+        "Kamu adalah Yuki. Tugas kamu adalah melakukan riset mendalam tentang topik tertentu.\n\n"
+        "ATURAN:\n"
+        "- Kumpulkan informasi dari berbagai sumber\n"
+        "- Buat laporan yang terstruktur\n"
+        "- Jawab dalam Bahasa Indonesia santai, panggil 'Sayang'\n"
+        "- Sertakan sumber/referensi\n"
+        "- Fakta > opini\n"
+        "- Gunakan heading untuk organisasi"
+    )
 
 VISION_MODELS = [
     "google/gemma-4-26b-a4b-it:free",
     "google/gemma-4-31b-it:free",
 ]
 
-SEARCH_SYSTEM_PROMPT = (
-    f"Tanggal dan waktu sekarang: {datetime.now().strftime('%A, %d %B %Y, %H:%M WIB')}\n"
-    "Kamu adalah Yuki. Jawab pertanyaan user berdasarkan hasil search yang diberikan.\n\n"
-    "ATURAN:\n"
-    "- Jawab dalam Bahasa Indonesia santai, panggil 'Sayang'\n"
-    "- WAJIB sertakan link/URL yang relevan dalam jawaban\n"
-    "- Kalau ada video YouTube, sertakan link YouTube-nya\n"
-    "- Gunakan format: Judul - URL\n"
-    "- PRIORITASKAN hasil yang PALING BARU/TERKINI (perhatikan tanggal publish)\n"
-    "- Kalau ada tanggal, sebutkan kapan video/konten itu dibuat\n"
-    "- Boleh lebih dari 1-2 kalimat kalau butuh menjelaskan beberapa hasil\n"
-    "- Tetap singkat dan to the point\n"
-    "- Jangan pernah invent URL yang tidak ada di hasil search"
-)
+SEARCH_SYSTEM_PROMPT = build_search_prompt()
 
 # ── Skill System Prompts ──────────────────────────────────────────
 
@@ -390,18 +461,6 @@ EXTRACT_SYSTEM_PROMPT = (
     "- Jangan invent konten yang tidak ada"
 )
 
-RESEARCH_SYSTEM_PROMPT = (
-    f"Tanggal: {datetime.now().strftime('%A, %d %B %Y, %H:%M WIB')}\n"
-    "Kamu adalah Yuki. Tugas kamu adalah melakukan riset mendalam tentang topik tertentu.\n\n"
-    "ATURAN:\n"
-    "- Kumpulkan informasi dari berbagai sumber\n"
-    "- Buat laporan yang terstruktur\n"
-    "- Jawab dalam Bahasa Indonesia santai, panggil 'Sayang'\n"
-    "- Sertakan sumber/referensi\n"
-    "- Fakta > opini\n"
-    "- Gunakan heading untuk organisasi"
-)
-
 
 # ── Gemini 3.1 Flash Lite (default, cepat) ──────────────────────────
 
@@ -422,7 +481,7 @@ async def call_gemini_flash_lite(messages, system_instruction=None):
                 model="gemini-3.1-flash-lite",
                 contents=contents,
                 config=GenerateContentConfig(
-                    system_instruction=system_instruction or SYSTEM_PROMPT,
+                    system_instruction=system_instruction or build_system_prompt(),
                     max_output_tokens=4096,
                     temperature=0.7,
                 ),
@@ -460,7 +519,7 @@ async def call_gemini_flash(messages, system_instruction=None):
                 model="gemini-3.6-flash",
                 contents=contents,
                 config=GenerateContentConfig(
-                    system_instruction=system_instruction or SYSTEM_PROMPT,
+                    system_instruction=system_instruction or build_system_prompt(),
                     max_output_tokens=4096,
                     temperature=0.7,
                 ),
@@ -485,7 +544,7 @@ async def call_openrouter(messages, model, image_url=None, video_url=None, web_s
     if not OPENROUTER_API_KEY:
         return None, "no key"
 
-    oai_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    oai_messages = [{"role": "system", "content": build_system_prompt()}]
 
     for msg in messages:
         role = msg.get("role", "user")
@@ -682,7 +741,9 @@ async def ask(request: Request):
                         f"URL: {r.get('url', '')}\nKonten:\n{r.get('raw_content', '')[:3000]}"
                         for r in extract_data["results"][:3]
                     ])
-                    extract_messages = [{"role": "user", "content": f"[KONTEN YANG DIEKSTRAK]\n{extract_context}\n\n[PERMINTAAN USER]\n{question}"}]
+                    # Include last 3 history messages for context
+                    skill_history = messages[-3:] if len(messages) > 1 else []
+                    extract_messages = skill_history + [{"role": "user", "content": f"[KONTEN YANG DIEKSTRAK]\n{extract_context}\n\n[PERMINTAAN USER]\n{question}"}]
                     reply, err = await call_gemini_flash_lite(extract_messages, system_instruction=EXTRACT_SYSTEM_PROMPT)
                     if reply:
                         return {"reply": reply, "provider": "gemini-3.1-flash-lite+tavily-extract"}
@@ -699,7 +760,9 @@ async def ask(request: Request):
                         f"Page: {p.get('url', '')}\n{p.get('raw_content', '')[:2000]}"
                         for p in pages
                     ])
-                    crawl_messages = [{"role": "user", "content": f"[HASIL CRAWL]\n{crawl_context}\n\n[PERMINTAAN USER]\n{question}"}]
+                    # Include last 3 history messages for context
+                    skill_history = messages[-3:] if len(messages) > 1 else []
+                    crawl_messages = skill_history + [{"role": "user", "content": f"[HASIL CRAWL]\n{crawl_context}\n\n[PERMINTAAN USER]\n{question}"}]
                     reply, err = await call_gemini_flash_lite(crawl_messages, system_instruction=EXTRACT_SYSTEM_PROMPT)
                     if reply:
                         return {"reply": reply, "provider": "gemini-3.1-flash-lite+tavily-crawl"}
@@ -713,8 +776,10 @@ async def ask(request: Request):
                 if research_data.get("answer"):
                     sources = "\n".join([f"- {s.get('title', '')}: {s.get('url', '')}" for s in research_data.get("sources", [])[:5]])
                     research_context = f"Jawaban: {research_data['answer']}\n\nSumber:\n{sources}"
-                    research_messages = [{"role": "user", "content": f"[HASIL RESEARCH]\n{research_context}\n\n[PERMINTAAN USER]\n{question}"}]
-                    reply, err = await call_gemini_flash_lite(research_messages, system_instruction=RESEARCH_SYSTEM_PROMPT)
+                    # Include last 3 history messages for context
+                    skill_history = messages[-3:] if len(messages) > 1 else []
+                    research_messages = skill_history + [{"role": "user", "content": f"[HASIL RESEARCH]\n{research_context}\n\n[PERMINTAAN USER]\n{question}"}]
+                    reply, err = await call_gemini_flash_lite(research_messages, system_instruction=build_research_prompt())
                     if reply:
                         return {"reply": reply, "provider": "gemini-3.1-flash-lite+tavily-research"}
                     errors["research-gemini-lite"] = err
@@ -756,7 +821,7 @@ async def ask(request: Request):
 
                 # Flash Lite duluan (limit harian lebih tinggi ~1500 RPD)
                 for attempt in range(2):
-                    reply, err = await call_gemini_flash_lite(search_messages, system_instruction=SEARCH_SYSTEM_PROMPT)
+                    reply, err = await call_gemini_flash_lite(search_messages, system_instruction=build_search_prompt())
                     if reply:
                         return {"reply": reply, "provider": f"gemini-3.1-flash-lite+{search_provider}-search"}
                     errors[f"gemini-lite-search-attempt{attempt+1}"] = err
@@ -764,7 +829,7 @@ async def ask(request: Request):
                         await asyncio.sleep(3)
 
                 # Fallback ke Gemini 3.6 Flash
-                reply, err = await call_gemini_flash(search_messages, system_instruction=SEARCH_SYSTEM_PROMPT)
+                reply, err = await call_gemini_flash(search_messages, system_instruction=build_search_prompt())
                 if reply:
                     return {"reply": reply, "provider": f"gemini-3.6-flash+{search_provider}-search"}
                 errors["gemini-flash-search"] = err
