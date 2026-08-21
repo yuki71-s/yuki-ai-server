@@ -3,7 +3,7 @@ import json
 import logging
 import asyncio
 import httpx
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from google import genai
@@ -85,12 +85,15 @@ async def search_tavily(query: str, search_depth: str = "advanced", days: int = 
     if not TAVILY_API_KEY:
         return {"answer": "", "results": []}
 
+    # Hitung start_date otomatis (realtime)
+    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+
     payload = {
         "query": query,
         "search_depth": search_depth,
         "max_results": 5,
         "include_answer": True,
-        "days": days,  # Filter hasil dari N hari terakhir
+        "start_date": start_date,  # Filter dari tanggal ini ke atas
     }
 
     try:
@@ -142,6 +145,35 @@ def format_tavily_results(tavily_data: dict, query: str) -> str:
         lines.append(f"- {title}\n  {snippet}\n{date_info}  Sumber: {url}\n")
 
     return "\n".join(lines)
+
+
+def rewrite_search_query(question: str, messages: list) -> str:
+    """Rewrite search query dengan context dari history percakapan.
+    Contoh: 'link vidio terbaru nya' → 'RumahEditor YouTube channel latest video'"""
+    if len(messages) < 2:
+        return question
+
+    # Ambil 2-4 message terakhir sebagai context
+    recent = messages[-4:] if len(messages) >= 4 else messages[:-1]
+    context_parts = []
+    for msg in recent:
+        if msg["role"] == "user":
+            context_parts.append(msg["content"])
+
+    if not context_parts:
+        return question
+
+    # Gabung context + query baru
+    context = " ".join(context_parts)
+    # Hapus duplikasi kata yang sama
+    query_lower = question.lower()
+    context_lower = context.lower()
+
+    # Kalau query terlalu pendek (< 5 kata), gabung dengan context
+    if len(question.split()) < 5:
+        return f"{context} {question}"
+
+    return question
 
 
 SYSTEM_PROMPT = (
@@ -431,28 +463,34 @@ async def ask(request: Request):
         elif web_search:
             search_context = ""
 
+            # Rewrite query dengan context dari history
+            search_query = rewrite_search_query(question, messages)
+            logger.info(f"Search query rewrite: '{question[:50]}' → '{search_query[:80]}'")
+
             if search_engine == "tavily" and TAVILY_API_KEY:
                 # Tavily search (1-2 credits, hasil lebih bagus)
-                logger.info(f"Search via Tavily: '{question[:50]}'")
-                tavily_data = await search_tavily(question, search_depth="advanced")
+                logger.info(f"Search via Tavily: '{search_query[:50]}'")
+                tavily_data = await search_tavily(search_query, search_depth="advanced")
                 search_context = format_tavily_results(tavily_data, question)
                 search_provider = "tavily"
             else:
                 # TinyFish search (gratis)
-                logger.info(f"Search via TinyFish: '{question[:50]}'")
-                search_results = await search_tinyfish(question)
+                logger.info(f"Search via TinyFish: '{search_query[:50]}'")
+                search_results = await search_tinyfish(search_query)
                 search_context = format_search_results(search_results, question)
                 search_provider = "tinyfish"
 
             # Fallback: kalau Tavily gagal, coba TinyFish
             if not search_context and search_engine == "tavily":
                 logger.info("Tavily search kosong, fallback ke TinyFish")
-                search_results = await search_tinyfish(question)
+                search_results = await search_tinyfish(search_query)
                 search_context = format_search_results(search_results, question)
                 search_provider = "tinyfish-fallback"
 
             if search_context:
-                search_messages = [{"role": "user", "content": f"{search_context}\n\nPertanyaan: {question}"}]
+                # Sertakan history + search results untuk konteks lengkap
+                search_messages = messages.copy()  # ← History dari percakapan
+                search_messages.append({"role": "user", "content": f"[HASIL SEARCH]\n{search_context}\n\n[PERTANYAAN USER]\n{question}"})
 
                 # Flash Lite duluan (limit harian lebih tinggi ~1500 RPD)
                 for attempt in range(2):
