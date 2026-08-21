@@ -79,7 +79,7 @@ def format_search_results(results: list, query: str) -> str:
 
 # ── Tavily Search (deep search, 1-2 credits) ───────────────────────
 
-async def search_tavily(query: str, search_depth: str = "advanced") -> dict:
+async def search_tavily(query: str, search_depth: str = "advanced", days: int = 30) -> dict:
     """Search web via Tavily API. basic=1 credit, advanced=2 credits.
     Returns dict with 'answer' (AI summary) and 'results' (raw results)."""
     if not TAVILY_API_KEY:
@@ -90,6 +90,7 @@ async def search_tavily(query: str, search_depth: str = "advanced") -> dict:
         "search_depth": search_depth,
         "max_results": 5,
         "include_answer": True,
+        "days": days,  # Filter hasil dari N hari terakhir
     }
 
     try:
@@ -136,7 +137,9 @@ def format_tavily_results(tavily_data: dict, query: str) -> str:
         title = r.get("title", "")
         snippet = r.get("content", "")
         url = r.get("url", "")
-        lines.append(f"- {title}\n  {snippet}\n  Sumber: {url}\n")
+        published_date = r.get("published_date", "")
+        date_info = f"  Tanggal: {published_date}\n" if published_date else ""
+        lines.append(f"- {title}\n  {snippet}\n{date_info}  Sumber: {url}\n")
 
     return "\n".join(lines)
 
@@ -186,6 +189,8 @@ SEARCH_SYSTEM_PROMPT = (
     "- WAJIB sertakan link/URL yang relevan dalam jawaban\n"
     "- Kalau ada video YouTube, sertakan link YouTube-nya\n"
     "- Gunakan format: Judul - URL\n"
+    "- PRIORITASKAN hasil yang PALING BARU/TERKINI (perhatikan tanggal publish)\n"
+    "- Kalau ada tanggal, sebutkan kapan video/konten itu dibuat\n"
     "- Boleh lebih dari 1-2 kalimat kalau butuh menjelaskan beberapa hasil\n"
     "- Tetap singkat dan to the point\n"
     "- Jangan pernah invent URL yang tidak ada di hasil search"
@@ -449,13 +454,7 @@ async def ask(request: Request):
             if search_context:
                 search_messages = [{"role": "user", "content": f"{search_context}\n\nPertanyaan: {question}"}]
 
-                # Coba Gemini 3.6 Flash dulu (lebih stabil)
-                reply, err = await call_gemini_flash(search_messages, system_instruction=SEARCH_SYSTEM_PROMPT)
-                if reply:
-                    return {"reply": reply, "provider": f"gemini-3.6-flash+{search_provider}-search"}
-                errors["gemini-flash-search"] = err
-
-                # Fallback ke Gemini 3.1 Flash Lite
+                # Flash Lite duluan (limit harian lebih tinggi ~1500 RPD)
                 for attempt in range(2):
                     reply, err = await call_gemini_flash_lite(search_messages, system_instruction=SEARCH_SYSTEM_PROMPT)
                     if reply:
@@ -463,6 +462,12 @@ async def ask(request: Request):
                     errors[f"gemini-lite-search-attempt{attempt+1}"] = err
                     if attempt == 0:
                         await asyncio.sleep(3)
+
+                # Fallback ke Gemini 3.6 Flash
+                reply, err = await call_gemini_flash(search_messages, system_instruction=SEARCH_SYSTEM_PROMPT)
+                if reply:
+                    return {"reply": reply, "provider": f"gemini-3.6-flash+{search_provider}-search"}
+                errors["gemini-flash-search"] = err
 
             # Fallback ke OpenRouter search
             or_model = model_pref.replace("openrouter/", "") if model_pref.startswith("openrouter/") else "google/gemini-2.5-flash"
