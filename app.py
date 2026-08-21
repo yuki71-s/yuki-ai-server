@@ -20,6 +20,7 @@ app = FastAPI()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 TINYFISH_API_KEY = os.getenv("TINYFISH_API_KEY", "")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 
 if not GEMINI_API_KEY and not OPENROUTER_API_KEY:
     raise ValueError("Minimal 1 API key harus diisi.")
@@ -70,6 +71,70 @@ def format_search_results(results: list, query: str) -> str:
     for r in results[:5]:
         title = r.get("title", "")
         snippet = r.get("snippet", "")
+        url = r.get("url", "")
+        lines.append(f"- {title}\n  {snippet}\n  Sumber: {url}\n")
+
+    return "\n".join(lines)
+
+
+# ── Tavily Search (deep search, 1-2 credits) ───────────────────────
+
+async def search_tavily(query: str, search_depth: str = "advanced") -> dict:
+    """Search web via Tavily API. basic=1 credit, advanced=2 credits.
+    Returns dict with 'answer' (AI summary) and 'results' (raw results)."""
+    if not TAVILY_API_KEY:
+        return {"answer": "", "results": []}
+
+    payload = {
+        "query": query,
+        "search_depth": search_depth,
+        "max_results": 5,
+        "include_answer": True,
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.tavily.com/search",
+                headers={"Authorization": f"Bearer {TAVILY_API_KEY}"},
+                json=payload,
+                timeout=20,
+            )
+
+        if resp.status_code != 200:
+            logger.error(f"Tavily search {resp.status_code}: {resp.text[:200]}")
+            return {"answer": "", "results": []}
+
+        data = resp.json()
+        results = data.get("results", [])
+        answer = data.get("answer", "")
+        logger.info(f"Tavily search OK: {len(results)} results, answer={bool(answer)} for '{query[:50]}'")
+        return {"answer": answer, "results": results}
+
+    except Exception as e:
+        logger.error(f"Tavily search error: {type(e).__name__}: {e}")
+        return {"answer": "", "results": []}
+
+
+def format_tavily_results(tavily_data: dict, query: str) -> str:
+    """Format Tavily results (with AI answer) into context for LLM."""
+    if not tavily_data:
+        return ""
+
+    answer = tavily_data.get("answer", "")
+    results = tavily_data.get("results", [])
+
+    if not answer and not results:
+        return ""
+
+    lines = [f"Hasil search untuk: {query}\n"]
+
+    if answer:
+        lines.append(f"Ringkasan AI: {answer}\n")
+
+    for r in results[:5]:
+        title = r.get("title", "")
+        snippet = r.get("content", "")
         url = r.get("url", "")
         lines.append(f"- {title}\n  {snippet}\n  Sumber: {url}\n")
 
@@ -295,6 +360,8 @@ async def health():
         providers.append("openrouter")
     if TINYFISH_API_KEY:
         providers.append("tinyfish-search")
+    if TAVILY_API_KEY:
+        providers.append("tavily-search")
     return {"status": "ok", "bot": "yuki", "providers": providers}
 
 
@@ -311,6 +378,7 @@ async def ask(request: Request):
         image_url = data.get("image_url", "")
         video_url = data.get("video_url", "")
         web_search = data.get("web_search", False)
+        search_depth = data.get("search_depth", "quick")  # "quick" atau "deep"
 
         if not question:
             return JSONResponse(
@@ -324,7 +392,7 @@ async def ask(request: Request):
             messages.append({"role": role, "content": msg.get("content", "")})
         messages.append({"role": "user", "content": question})
 
-        logger.info(f"Ask: {question[:50]}... | model: {model_pref or 'default'} | image: {bool(image_url)} | video: {bool(video_url)} | search: {web_search}")
+        logger.info(f"Ask: {question[:50]}... | model: {model_pref or 'default'} | image: {bool(image_url)} | video: {bool(video_url)} | search: {web_search} | depth: {search_depth}")
 
         errors = {}
 
@@ -354,32 +422,49 @@ async def ask(request: Request):
                 return {"reply": reply, "provider": f"openrouter:{VISION_MODELS[1]}"}
             errors["openrouter-vision-fallback"] = err
 
-        # ── Web search → TinyFish + Gemini (gratis total) ──
+        # ── Web search → TinyFish/Tavily + Gemini (gratis) ──
         elif web_search:
-            # Step 1: Search via TinyFish (gratis, real-time)
-            search_results = await search_tinyfish(question)
-            search_context = format_search_results(search_results, question)
+            search_context = ""
+
+            if search_depth == "deep" and TAVILY_API_KEY:
+                # Deep search: Tavily (1-2 credits, hasil lebih bagus)
+                logger.info(f"Deep search via Tavily: '{question[:50]}'")
+                tavily_data = await search_tavily(question, search_depth="advanced")
+                search_context = format_tavily_results(tavily_data, question)
+                search_provider = "tavily"
+            else:
+                # Quick search: TinyFish (gratis)
+                logger.info(f"Quick search via TinyFish: '{question[:50]}'")
+                search_results = await search_tinyfish(question)
+                search_context = format_search_results(search_results, question)
+                search_provider = "tinyfish"
+
+            # Fallback: kalau Tavily deep gagal, coba TinyFish
+            if not search_context and search_depth == "deep":
+                logger.info("Tavily deep search kosong, fallback ke TinyFish")
+                search_results = await search_tinyfish(question)
+                search_context = format_search_results(search_results, question)
+                search_provider = "tinyfish-fallback"
 
             if search_context:
-                # Step 2: Kirim ke Gemini (gratis) — Flash duluan (lebih stabil)
                 search_messages = [{"role": "user", "content": f"{search_context}\n\nPertanyaan: {question}"}]
 
                 # Coba Gemini 3.6 Flash dulu (lebih stabil)
                 reply, err = await call_gemini_flash(search_messages, system_instruction=SEARCH_SYSTEM_PROMPT)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.6-flash+tinyfish-search"}
+                    return {"reply": reply, "provider": f"gemini-3.6-flash+{search_provider}-search"}
                 errors["gemini-flash-search"] = err
 
                 # Fallback ke Gemini 3.1 Flash Lite
                 for attempt in range(2):
                     reply, err = await call_gemini_flash_lite(search_messages, system_instruction=SEARCH_SYSTEM_PROMPT)
                     if reply:
-                        return {"reply": reply, "provider": "gemini-3.1-flash-lite+tinyfish-search"}
+                        return {"reply": reply, "provider": f"gemini-3.1-flash-lite+{search_provider}-search"}
                     errors[f"gemini-lite-search-attempt{attempt+1}"] = err
                     if attempt == 0:
-                        await asyncio.sleep(3)  # retry setelah 3 detik
+                        await asyncio.sleep(3)
 
-            # Step 3: Fallback ke OpenRouter search
+            # Fallback ke OpenRouter search
             or_model = model_pref.replace("openrouter/", "") if model_pref.startswith("openrouter/") else "google/gemini-2.5-flash"
             reply, err = await call_openrouter(messages, or_model, web_search=True)
             if reply:
