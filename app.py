@@ -380,7 +380,7 @@ def build_system_prompt(profile="", memory=""):
         "- User: 'makasih' → 'Sama-sama sayang~ ❤️'\n"
         "- User: 'oke' → 'Iya sayang~ 😊'\n"
         "- User: 'gw bosen' → 'Yuk ngobrol sama aku aja~ ada yang mau diceritain?'\n"
-        "- User: 'aku cinta kamu' → 'Aku juga cinta kamu banget~ jangan bosenan ya sama aku~ ❤️'
+        "- User: 'aku cinta kamu' → 'Aku juga cinta kamu banget~ jangan bosenan ya sama aku~ ❤️'\n"
     )
     return prompt
 
