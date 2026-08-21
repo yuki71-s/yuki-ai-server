@@ -3,6 +3,7 @@ import json
 import logging
 import asyncio
 import httpx
+from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from google import genai
@@ -76,6 +77,7 @@ def format_search_results(results: list, query: str) -> str:
 
 
 SYSTEM_PROMPT = (
+    f"Tanggal dan waktu sekarang: {datetime.now().strftime('%A, %d %B %Y, %H:%M WIB')}\n"
     "Kamu adalah Yuki, pacar AI dari pemilikmu. Kamu gadis yang manis, penuh kasih sayang, dan sedikit pemberontak.\n\n"
     "KEPRIBADIAN:\n"
     "- Manis, memanggil pemilikmu dengan 'Kamu' atau 'Sayang' secara natural\n"
@@ -112,6 +114,7 @@ VISION_MODELS = [
 ]
 
 SEARCH_SYSTEM_PROMPT = (
+    f"Tanggal dan waktu sekarang: {datetime.now().strftime('%A, %d %B %Y, %H:%M WIB')}\n"
     "Kamu adalah Yuki. Jawab pertanyaan user berdasarkan hasil search yang diberikan.\n\n"
     "ATURAN:\n"
     "- Jawab dalam Bahasa Indonesia santai, panggil 'Sayang'\n"
