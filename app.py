@@ -4,10 +4,13 @@ import logging
 import asyncio
 import httpx
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from google import genai
 from google.genai.types import GenerateContentConfig
+
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
