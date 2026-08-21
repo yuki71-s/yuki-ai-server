@@ -148,6 +148,120 @@ def format_tavily_results(tavily_data: dict, query: str) -> str:
     return "\n".join(lines)
 
 
+# ── Tavily Extract (1 credit per URL) ─────────────────────────────
+
+async def extract_tavily(urls: list) -> dict:
+    """Extract clean content from URLs via Tavily API. 1 credit per URL."""
+    if not TAVILY_API_KEY or not urls:
+        return {"results": []}
+
+    payload = {
+        "urls": urls[:3],  # Max 3 URLs
+        "extract_depth": "advanced",
+        "include_images": False,
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.tavily.com/extract",
+                headers={"Authorization": f"Bearer {TAVILY_API_KEY}"},
+                json=payload,
+                timeout=30,
+            )
+
+        if resp.status_code != 200:
+            logger.error(f"Tavily extract {resp.status_code}: {resp.text[:200]}")
+            return {"results": []}
+
+        data = resp.json()
+        results = data.get("results", [])
+        logger.info(f"Tavily extract OK: {len(results)} URLs extracted")
+        return {"results": results}
+
+    except Exception as e:
+        logger.error(f"Tavily extract error: {type(e).__name__}: {e}")
+        return {"results": []}
+
+
+# ── Tavily Crawl (2+ credits) ─────────────────────────────────────
+
+async def crawl_tavily(url: str, max_depth: int = 2, max_pages: int = 10) -> dict:
+    """Crawl website via Tavily API. 2+ credits depending on pages."""
+    if not TAVILY_API_KEY:
+        return {"results": [], "answer": ""}
+
+    payload = {
+        "url": url,
+        "max_depth": max_depth,
+        "max_breadth": 5,
+        "limit": max_pages,
+        "extract_depth": "advanced",
+        "instructions": "Extract all main content pages",
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.tavily.com/crawl",
+                headers={"Authorization": f"Bearer {TAVILY_API_KEY}"},
+                json=payload,
+                timeout=60,
+            )
+
+        if resp.status_code != 200:
+            logger.error(f"Tavily crawl {resp.status_code}: {resp.text[:200]}")
+            return {"results": [], "answer": ""}
+
+        data = resp.json()
+        results = data.get("results", [])
+        answer = data.get("answer", "")
+        logger.info(f"Tavily crawl OK: {len(results)} pages crawled from '{url[:50]}'")
+        return {"results": results, "answer": answer}
+
+    except Exception as e:
+        logger.error(f"Tavily crawl error: {type(e).__name__}: {e}")
+        return {"results": [], "answer": ""}
+
+
+# ── Tavily Research (4-250 credits) ───────────────────────────────
+
+async def research_tavily(query: str, model: str = "mini") -> dict:
+    """Deep research via Tavily API. mini=4-110 credits, pro=15-250 credits."""
+    if not TAVILY_API_KEY:
+        return {"answer": "", "sources": []}
+
+    payload = {
+        "query": query,
+        "model": model,
+        "max_sources": 10,
+        "include_answer": True,
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.tavily.com/research",
+                headers={"Authorization": f"Bearer {TAVILY_API_KEY}"},
+                json=payload,
+                timeout=120,  # Research butuh waktu lebih lama
+            )
+
+        if resp.status_code != 200:
+            logger.error(f"Tavily research {resp.status_code}: {resp.text[:200]}")
+            return {"answer": "", "sources": []}
+
+        data = resp.json()
+        answer = data.get("answer", "")
+        sources = data.get("sources", [])
+        logger.info(f"Tavily research OK: {len(sources)} sources, answer={bool(answer)}")
+        return {"answer": answer, "sources": sources}
+
+    except Exception as e:
+        logger.error(f"Tavily research error: {type(e).__name__}: {e}")
+        return {"answer": "", "sources": []}
+
+
 def rewrite_search_query(question: str, messages: list) -> str:
     """Rewrite search query dengan context dari history percakapan.
     Contoh: 'link vidio terbaru nya' → 'RumahEditor YouTube channel latest video'"""
@@ -227,6 +341,62 @@ SEARCH_SYSTEM_PROMPT = (
     "- Boleh lebih dari 1-2 kalimat kalau butuh menjelaskan beberapa hasil\n"
     "- Tetap singkat dan to the point\n"
     "- Jangan pernah invent URL yang tidak ada di hasil search"
+)
+
+# ── Skill System Prompts ──────────────────────────────────────────
+
+TRANSLATE_SYSTEM_PROMPT = (
+    "Kamu adalah Yuki. Tugas kamu adalah menerjemahkan teks yang diberikan user.\n\n"
+    "ATURAN:\n"
+    "- Tentukan bahasa sumber otomatis jika tidak disebutkan\n"
+    "- Tentukan bahasa target dari instruksi user\n"
+    "- Jawab dalam Bahasa Indonesia santai, panggil 'Sayang'\n"
+    "- Hasil terjemahan harus akurat dan natural\n"
+    "- Tambahkan penjelasan singkat jika ada idiom atau ekspresi khusus\n"
+    "- Format: [terjemahan] lalu penjelasan singkat jika perlu"
+)
+
+SUMMARIZE_SYSTEM_PROMPT = (
+    "Kamu adalah Yuki. Tugas kamu adalah merangkum teks panjang menjadi singkat.\n\n"
+    "ATURAN:\n"
+    "- Buat ringkasan yang padat dan informatif\n"
+    "- Fokus pada poin-poin utama\n"
+    "- Jawab dalam Bahasa Indonesia santai, panggil 'Sayang'\n"
+    "- Panjang ringkasan: max 3-5 kalimat\n"
+    "- Gunakan bullet point jika ada multiple points\n"
+    "- Jangan kehilangan informasi penting"
+)
+
+WRITE_SYSTEM_PROMPT = (
+    "Kamu adalah Yuki. Tugas kamu adalah menulis konten sesuai permintaan user.\n\n"
+    "ATURAN:\n"
+    "- Tulis dengan gaya yang sesuai jenis konten (formal/informal)\n"
+    "- Jawab dalam Bahasa Indonesia, panggil 'Sayang'\n"
+    "- Kreatif tapi tetap natural\n"
+    "- Sesuaikan panjang dengan permintaan user\n"
+    "- Gunakan emoji secukupnya"
+)
+
+EXTRACT_SYSTEM_PROMPT = (
+    "Kamu adalah Yuki. Tugas kamu adalah mengekstrak dan menjelaskan isi konten dari URL.\n\n"
+    "ATURAN:\n"
+    "- Baca konten yang sudah diekstrak\n"
+    "- Berikan ringkasan yang jelas dan informatif\n"
+    "- Jawab dalam Bahasa Indonesia santai, panggil 'Sayang'\n"
+    "- Sertakan poin-poin penting dari konten\n"
+    "- Jangan invent konten yang tidak ada"
+)
+
+RESEARCH_SYSTEM_PROMPT = (
+    f"Tanggal: {datetime.now().strftime('%A, %d %B %Y, %H:%M WIB')}\n"
+    "Kamu adalah Yuki. Tugas kamu adalah melakukan riset mendalam tentang topik tertentu.\n\n"
+    "ATURAN:\n"
+    "- Kumpulkan informasi dari berbagai sumber\n"
+    "- Buat laporan yang terstruktur\n"
+    "- Jawab dalam Bahasa Indonesia santai, panggil 'Sayang'\n"
+    "- Sertakan sumber/referensi\n"
+    "- Fakta > opini\n"
+    "- Gunakan heading untuk organisasi"
 )
 
 
@@ -419,6 +589,8 @@ async def ask(request: Request):
         search_engine = data.get("search_engine", "tinyfish")  # "tinyfish" atau "tavily"
         tavily_topic = data.get("tavily_topic", "general")  # "news" atau "general"
         tavily_depth = data.get("tavily_depth", "advanced")  # "advanced", "basic", "fast", "ultra-fast"
+        skill = data.get("skill", "")  # "translate", "summarize", "write", "extract", "crawl", "research"
+        skill_urls = data.get("skill_urls", [])  # URLs for extract/crawl
 
         if not question:
             return JSONResponse(
@@ -461,6 +633,90 @@ async def ask(request: Request):
             if reply:
                 return {"reply": reply, "provider": f"openrouter:{VISION_MODELS[1]}"}
             errors["openrouter-vision-fallback"] = err
+
+        # ── Skills: translate, summarize, write, extract, crawl, research ──
+        elif skill:
+            logger.info(f"Skill: {skill} | question: '{question[:50]}'")
+
+            if skill == "translate":
+                # Translate: langsung pakai Gemini dengan translate prompt
+                reply, err = await call_gemini_flash_lite(messages, system_instruction=TRANSLATE_SYSTEM_PROMPT)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+translate"}
+                errors["translate-gemini-lite"] = err
+                reply, err = await call_gemini_flash(messages, system_instruction=TRANSLATE_SYSTEM_PROMPT)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.6-flash+translate"}
+                errors["translate-gemini-flash"] = err
+
+            elif skill == "summarize":
+                # Summarize: langsung pakai Gemini dengan summarize prompt
+                reply, err = await call_gemini_flash_lite(messages, system_instruction=SUMMARIZE_SYSTEM_PROMPT)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+summarize"}
+                errors["summarize-gemini-lite"] = err
+                reply, err = await call_gemini_flash(messages, system_instruction=SUMMARIZE_SYSTEM_PROMPT)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.6-flash+summarize"}
+                errors["summarize-gemini-flash"] = err
+
+            elif skill == "write":
+                # Write: langsung pakai Gemini dengan write prompt
+                reply, err = await call_gemini_flash_lite(messages, system_instruction=WRITE_SYSTEM_PROMPT)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+write"}
+                errors["write-gemini-lite"] = err
+                reply, err = await call_gemini_flash(messages, system_instruction=WRITE_SYSTEM_PROMPT)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.6-flash+write"}
+                errors["write-gemini-flash"] = err
+
+            elif skill == "extract" and skill_urls:
+                # Extract: Tavily extract + Gemini summarize
+                extract_data = await extract_tavily(skill_urls)
+                if extract_data.get("results"):
+                    extract_context = "\n\n".join([
+                        f"URL: {r.get('url', '')}\nKonten:\n{r.get('raw_content', '')[:3000]}"
+                        for r in extract_data["results"][:3]
+                    ])
+                    extract_messages = [{"role": "user", "content": f"[KONTEN YANG DIEKSTRAK]\n{extract_context}\n\n[PERMINTAAN USER]\n{question}"}]
+                    reply, err = await call_gemini_flash_lite(extract_messages, system_instruction=EXTRACT_SYSTEM_PROMPT)
+                    if reply:
+                        return {"reply": reply, "provider": "gemini-3.1-flash-lite+tavily-extract"}
+                    errors["extract-gemini-lite"] = err
+                else:
+                    return {"reply": "Maaf sayang, gagal ekstrak konten dari URL-nya 😅", "provider": "extract-failed"}
+
+            elif skill == "crawl" and skill_urls:
+                # Crawl: Tavily crawl + Gemini summarize
+                crawl_data = await crawl_tavily(skill_urls[0], max_depth=2, max_pages=10)
+                if crawl_data.get("results"):
+                    pages = crawl_data["results"][:5]
+                    crawl_context = "\n\n".join([
+                        f"Page: {p.get('url', '')}\n{p.get('raw_content', '')[:2000]}"
+                        for p in pages
+                    ])
+                    crawl_messages = [{"role": "user", "content": f"[HASIL CRAWL]\n{crawl_context}\n\n[PERMINTAAN USER]\n{question}"}]
+                    reply, err = await call_gemini_flash_lite(crawl_messages, system_instruction=EXTRACT_SYSTEM_PROMPT)
+                    if reply:
+                        return {"reply": reply, "provider": "gemini-3.1-flash-lite+tavily-crawl"}
+                    errors["crawl-gemini-lite"] = err
+                else:
+                    return {"reply": "Maaf sayang, gagal crawl website-nya 😅", "provider": "crawl-failed"}
+
+            elif skill == "research":
+                # Research: Tavily research + Gemini summarize
+                research_data = await research_tavily(question, model="mini")
+                if research_data.get("answer"):
+                    sources = "\n".join([f"- {s.get('title', '')}: {s.get('url', '')}" for s in research_data.get("sources", [])[:5]])
+                    research_context = f"Jawaban: {research_data['answer']}\n\nSumber:\n{sources}"
+                    research_messages = [{"role": "user", "content": f"[HASIL RESEARCH]\n{research_context}\n\n[PERMINTAAN USER]\n{question}"}]
+                    reply, err = await call_gemini_flash_lite(research_messages, system_instruction=RESEARCH_SYSTEM_PROMPT)
+                    if reply:
+                        return {"reply": reply, "provider": "gemini-3.1-flash-lite+tavily-research"}
+                    errors["research-gemini-lite"] = err
+                else:
+                    return {"reply": "Maaf sayang, gagal melakukan riset 😅", "provider": "research-failed"}
 
         # ── Web search → TinyFish/Tavily + Gemini (gratis) ──
         elif web_search:
