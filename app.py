@@ -79,7 +79,7 @@ def format_search_results(results: list, query: str) -> str:
 
 # ── Tavily Search (deep search, 1-2 credits) ───────────────────────
 
-async def search_tavily(query: str, search_depth: str = "advanced", days: int = 30) -> dict:
+async def search_tavily(query: str, search_depth: str = "advanced", topic: str = "general", days: int = 30) -> dict:
     """Search web via Tavily API. basic=1 credit, advanced=2 credits.
     Returns dict with 'answer' (AI summary) and 'results' (raw results)."""
     if not TAVILY_API_KEY:
@@ -91,9 +91,10 @@ async def search_tavily(query: str, search_depth: str = "advanced", days: int = 
     payload = {
         "query": query,
         "search_depth": search_depth,
+        "topic": topic,  # "news" atau "general"
         "max_results": 5,
         "include_answer": True,
-        "start_date": start_date,  # Filter dari tanggal ini ke atas
+        "start_date": start_date,
     }
 
     try:
@@ -416,6 +417,8 @@ async def ask(request: Request):
         video_url = data.get("video_url", "")
         web_search = data.get("web_search", False)
         search_engine = data.get("search_engine", "tinyfish")  # "tinyfish" atau "tavily"
+        tavily_topic = data.get("tavily_topic", "general")  # "news" atau "general"
+        tavily_depth = data.get("tavily_depth", "advanced")  # "advanced", "basic", "fast", "ultra-fast"
 
         if not question:
             return JSONResponse(
@@ -468,9 +471,9 @@ async def ask(request: Request):
             logger.info(f"Search query rewrite: '{question[:50]}' → '{search_query[:80]}'")
 
             if search_engine == "tavily" and TAVILY_API_KEY:
-                # Tavily search (1-2 credits, hasil lebih bagus)
-                logger.info(f"Search via Tavily: '{search_query[:50]}'")
-                tavily_data = await search_tavily(search_query, search_depth="advanced")
+                # Tavily search dengan settings user
+                logger.info(f"Search via Tavily: topic={tavily_topic}, depth={tavily_depth}, query='{search_query[:50]}'")
+                tavily_data = await search_tavily(search_query, search_depth=tavily_depth, topic=tavily_topic)
                 search_context = format_tavily_results(tavily_data, question)
                 search_provider = "tavily"
             else:
