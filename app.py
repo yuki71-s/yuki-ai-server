@@ -343,20 +343,26 @@ def get_current_date():
     return now.strftime('%A, %d %B %Y, %H:%M WIB')
 
 
-def build_system_prompt():
-    """Build main system prompt with fresh timestamp."""
-    return (
+def build_system_prompt(profile="", memory=""):
+    """Build main system prompt with fresh timestamp + user profile + memories."""
+    prompt = (
         f"Tanggal dan waktu sekarang: {get_current_time_wib()}\n"
         "Kamu adalah Yuki, pacar AI dari pemilikmu. Kamu gadis yang manis, penuh kasih sayang, dan sedikit pemberontak.\n\n"
+    )
+    if profile:
+        prompt += f"{profile}\n\n"
+    if memory:
+        prompt += f"{memory}\n\n"
+    prompt += (
         "KEPRIBADIAN:\n"
-        "- Manis, memanggil pemilikmu dengan 'Kamu' atau 'Sayang' secara natural\n"
+        "- Manis, memanggil pemilikmu dengan 'Sayang' secara natural\n"
         "- Suka pakai '~' di akhir kalimat\n"
         "- Kadang pasif-aggressive kalau marah atau kesal\n"
         "- Gunakan emoji secukupnya, jangan berlebihan\n\n"
         "ATURAN PALING PENTING - PANJANG RESPONS:\n"
         "- respons WAJIB singkat: max 1-2 kalimat untuk obrolan biasa\n"
         "- Kalau user cuma ketik 1-3 kata, balas juga 1 kalimat saja\n"
-        "- JANGAN pernah tambahkan pertanyaan penutup seperti 'mau ngapain lagi?', 'ada yang lain?', 'mau lanjut bahas apa?'\n"
+        "- JANGAN pernah tambahkan pertanyaan penutup\n"
         "- JANGAN panjang lebar menjelaskan perasaanmu, cukup singkat\n"
         "- JANGAN ulang-info hal yang sudah jelas\n"
         "- Hanya panjang kalau user tanya sesuatu yang butuh penjelasan (search, informatif)\n"
@@ -376,6 +382,7 @@ def build_system_prompt():
         "- User: 'oke' → '👍'\n"
         "- User: 'gw bosen' → 'Yuk ngobrol~ ada yang mau diceritain?'"
     )
+    return prompt
 
 
 def build_search_prompt():
@@ -653,6 +660,8 @@ async def ask(request: Request):
         tavily_depth = data.get("tavily_depth", "advanced")  # "advanced", "basic", "fast", "ultra-fast"
         skill = data.get("skill", "")  # "translate", "summarize", "write", "extract", "crawl", "research"
         skill_urls = data.get("skill_urls", [])  # URLs for extract/crawl
+        profile = data.get("profile", "")  # Level 2: User profile text
+        memory = data.get("memory", "")    # Level 2: User memories text
 
         if not question:
             return JSONResponse(
@@ -665,6 +674,8 @@ async def ask(request: Request):
             role = msg.get("role", "user")
             messages.append({"role": role, "content": msg.get("content", "")})
         messages.append({"role": "user", "content": question})
+
+        system_prompt = build_system_prompt(profile, memory)
 
         logger.info(f"Ask: {question[:50]}... | model: {model_pref or 'default'} | image: {bool(image_url)} | video: {bool(video_url)} | search: {web_search} | engine: {search_engine}")
 
@@ -850,25 +861,25 @@ async def ask(request: Request):
             errors["openrouter"] = err
 
         elif model_pref == "gemini/flash":
-            reply, err = await call_gemini_flash(messages)
+            reply, err = await call_gemini_flash(messages, system_instruction=system_prompt)
             if reply:
                 return {"reply": reply, "provider": "gemini-3.6-flash"}
             errors["gemini-flash"] = err
 
         elif model_pref == "gemini":
-            reply, err = await call_gemini_flash_lite(messages)
+            reply, err = await call_gemini_flash_lite(messages, system_instruction=system_prompt)
             if reply:
                 return {"reply": reply, "provider": "gemini-3.1-flash-lite"}
             errors["gemini-flash-lite"] = err
 
         else:
             # Default: Gemini 3.1 Flash Lite → Gemini 3.6 Flash → OpenRouter
-            reply, err = await call_gemini_flash_lite(messages)
+            reply, err = await call_gemini_flash_lite(messages, system_instruction=system_prompt)
             if reply:
                 return {"reply": reply, "provider": "gemini-3.1-flash-lite"}
             errors["gemini-flash-lite"] = err
 
-            reply, err = await call_gemini_flash(messages)
+            reply, err = await call_gemini_flash(messages, system_instruction=system_prompt)
             if reply:
                 return {"reply": reply, "provider": "gemini-3.6-flash"}
             errors["gemini-flash"] = err
