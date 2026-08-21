@@ -378,7 +378,7 @@ async def ask(request: Request):
         image_url = data.get("image_url", "")
         video_url = data.get("video_url", "")
         web_search = data.get("web_search", False)
-        search_depth = data.get("search_depth", "quick")  # "quick" atau "deep"
+        search_engine = data.get("search_engine", "tinyfish")  # "tinyfish" atau "tavily"
 
         if not question:
             return JSONResponse(
@@ -392,7 +392,7 @@ async def ask(request: Request):
             messages.append({"role": role, "content": msg.get("content", "")})
         messages.append({"role": "user", "content": question})
 
-        logger.info(f"Ask: {question[:50]}... | model: {model_pref or 'default'} | image: {bool(image_url)} | video: {bool(video_url)} | search: {web_search} | depth: {search_depth}")
+        logger.info(f"Ask: {question[:50]}... | model: {model_pref or 'default'} | image: {bool(image_url)} | video: {bool(video_url)} | search: {web_search} | engine: {search_engine}")
 
         errors = {}
 
@@ -426,22 +426,22 @@ async def ask(request: Request):
         elif web_search:
             search_context = ""
 
-            if search_depth == "deep" and TAVILY_API_KEY:
-                # Deep search: Tavily (1-2 credits, hasil lebih bagus)
-                logger.info(f"Deep search via Tavily: '{question[:50]}'")
+            if search_engine == "tavily" and TAVILY_API_KEY:
+                # Tavily search (1-2 credits, hasil lebih bagus)
+                logger.info(f"Search via Tavily: '{question[:50]}'")
                 tavily_data = await search_tavily(question, search_depth="advanced")
                 search_context = format_tavily_results(tavily_data, question)
                 search_provider = "tavily"
             else:
-                # Quick search: TinyFish (gratis)
-                logger.info(f"Quick search via TinyFish: '{question[:50]}'")
+                # TinyFish search (gratis)
+                logger.info(f"Search via TinyFish: '{question[:50]}'")
                 search_results = await search_tinyfish(question)
                 search_context = format_search_results(search_results, question)
                 search_provider = "tinyfish"
 
-            # Fallback: kalau Tavily deep gagal, coba TinyFish
-            if not search_context and search_depth == "deep":
-                logger.info("Tavily deep search kosong, fallback ke TinyFish")
+            # Fallback: kalau Tavily gagal, coba TinyFish
+            if not search_context and search_engine == "tavily":
+                logger.info("Tavily search kosong, fallback ke TinyFish")
                 search_results = await search_tinyfish(question)
                 search_context = format_search_results(search_results, question)
                 search_provider = "tinyfish-fallback"
