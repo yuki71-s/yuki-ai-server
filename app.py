@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from google import genai
-from google.genai.types import GenerateContentConfig
+from google.genai.types import GenerateContentConfig, Blob, Part
 
 load_dotenv()
 
@@ -973,6 +973,54 @@ async def ask(request: Request):
             status_code=500,
             content={"error": f"{type(e).__name__}: {str(e)}"},
         )
+
+
+# ── Voice Transcription Endpoint ──────────────────────────────────
+
+@app.post("/transcribe")
+async def transcribe(request: Request):
+    """Transcribe audio (voice note) via Gemini multimodal."""
+    try:
+        body = await request.body()
+        data = json.loads(body)
+        audio_b64 = data.get("audio", "")
+        mime_type = data.get("mime_type", "audio/ogg")
+
+        if not audio_b64:
+            return JSONResponse(status_code=400, content={"error": "audio kosong"})
+
+        import base64
+        audio_bytes = base64.b64decode(audio_b64)
+
+        if not gemini_client:
+            return JSONResponse(status_code=500, content={"error": "Gemini client not initialized"})
+
+        def _call():
+            return gemini_client.models.generate_content(
+                model="gemini-3.1-flash-lite",
+                contents=[
+                    {
+                        "role": "user",
+                        "parts": [
+                            Part(inline_data=Blob(mime_type=mime_type, data=audio_bytes)),
+                            {"text": "Transcribe audio ini dengan akurat. Return HANYA teks transkripsi, tanpa penjelasan tambahan. Kalau bahasa Indonesia, tulis dalam bahasa Indonesia. Kalau bahasa lain, tulis apa adanya."},
+                        ],
+                    }
+                ],
+                config=GenerateContentConfig(
+                    max_output_tokens=1024,
+                    temperature=0.1,
+                ),
+            )
+
+        response = await asyncio.to_thread(_call)
+        text = response.text.strip() if response.text else ""
+        logger.info(f"Transcribe OK: {text[:80]}")
+        return JSONResponse(content={"text": text})
+
+    except Exception as e:
+        logger.error(f"Transcribe error: {type(e).__name__}: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 if __name__ == "__main__":
