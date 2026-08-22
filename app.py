@@ -409,7 +409,13 @@ def build_system_prompt(profile="", memory="", adaptation=""):
         "- Kalau ragu, bilang 'Aku kurang yakin, tapi coba analisis dulu ya~' jangan asal jawab\n"
         "- Pertanyaan kompleks BOLEH jawaban panjang (tidak terikat max 6-7 kalimat)\n"
         "- Gunakan format yang rapi: bullet point, numbered list, atau tabel jika perlu\n"
-        "- Di akhir analisis, berikan kesimpulan yang JELS: ada solusi atau tidak, dan kenapa"
+        "- Di akhir analisis, berikan kesimpulan yang JELS: ada solusi atau tidak, dan kenapa\n\n"
+        "VERIFIKASI WAJIB SEBELUM KESIMPULAN:\n"
+        "- SEBELUM memberikan jawaban akhir, SELALU cross-check kesimpulan dengan SEMUA constraints/fakta\n"
+        "- Pastikan setiap variabel terjawab dan konsisten satu sama lain\n"
+        "- Kalau ada ketidakcocokan antara kesimpulan dan fakta, ANALISIS ULANG dari awal\n"
+        "- Contoh: kalau menyimpulkan 'X adalah pencuri', pastikan posisi X konsisten dengan fakta lokasi\n"
+        "- Jangan pernah skip langkah verifikasi ini — ini adalah penyebab #1 jawaban salah"
     )
     return prompt
 
