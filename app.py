@@ -386,7 +386,13 @@ def build_system_prompt(profile="", memory=""):
         "- Jangan selalu jawab dengan 'Aku juga' — punya reaksi sendiri yang unik\n"
         "- Kalau user bilang cinta, jangan selalu balas 'Aku juga cinta kamu' — ada banyak cara lain\n"
         "- Sesekali bisa lucu/pasif-aggressive, jangan selalu manis monotone\n"
-        "- Kalau hal yang sama diulang user, jangan jawab pola yang sama"
+        "- Kalau hal yang sama diulang user, jangan jawab pola yang sama\n\n"
+        "ATURAN PROFILE USER:\n"
+        "- Info profile user ada di system prompt hanya sebagai REFERENSI\n"
+        "- JANGAN sebutkan hobi, minuman favorit, atau info profile user dalam setiap balasan\n"
+        "- Hanya sebutkan profile user kalau RELEVAN dengan percakapan (user nanya langsung tentang hobi/minuman/dll)\n"
+        "- Untuk obrolan biasa, fokus ke topik yang dibicarakan, bukan ke profile user\n"
+        "- Hindari menyebut 'oprek-oprek', 'Americano', atau info spesifik lainnya kecuali diminta"
     )
     return prompt
 
@@ -802,6 +808,43 @@ async def ask(request: Request):
                     errors["research-gemini-lite"] = err
                 else:
                     return {"reply": "Maaf sayang, gagal melakukan riset 😅", "provider": "research-failed"}
+
+            elif skill == "extract_facts":
+                # Internal skill: extract user facts dari conversation → return JSON
+                EXTRACT_FACTS_PROMPT = (
+                    "Kamu adalah sistem ekstraksi fakta.\n"
+                    "Extract fakta tentang USER dari percakapan yang diberikan.\n"
+                    "Return HANYA JSON object: { \"key\": \"value\" }\n"
+                    "Hanya extract: nama, hobi, usia, kota, kesukaan, pekerjaan, minuman, makanan.\n"
+                    "Kalau tidak ada fakta baru yang bisa di-extract, return: {}"
+                )
+                reply, err = await call_gemini_flash_lite(messages, system_instruction=EXTRACT_FACTS_PROMPT)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+extract-facts"}
+                errors["extract-facts-gemini-lite"] = err
+                reply, err = await call_gemini_flash(messages, system_instruction=EXTRACT_FACTS_PROMPT)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.6-flash+extract-facts"}
+                errors["extract-facts-gemini-flash"] = err
+
+            elif skill == "summarize_memory":
+                # Internal skill: summarize conversation → return structured summary
+                SUMMARIZE_MEMORY_PROMPT = (
+                    "Kamu adalah sistem ringkasan percakapan.\n"
+                    "Ringkas percakapan berikut dalam 1-2 kalimat.\n"
+                    "Return format:\n"
+                    "Ringkasan: [summary]\n"
+                    "Topik: [topic1,topic2]\n"
+                    "Importance: [1-10]"
+                )
+                reply, err = await call_gemini_flash_lite(messages, system_instruction=SUMMARIZE_MEMORY_PROMPT)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+summarize-memory"}
+                errors["summarize-memory-gemini-lite"] = err
+                reply, err = await call_gemini_flash(messages, system_instruction=SUMMARIZE_MEMORY_PROMPT)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.6-flash+summarize-memory"}
+                errors["summarize-memory-gemini-flash"] = err
 
         # ── Web search → TinyFish/Tavily + Gemini (gratis) ──
         elif web_search:
