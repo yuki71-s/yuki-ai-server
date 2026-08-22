@@ -399,7 +399,17 @@ def build_system_prompt(profile="", memory="", adaptation=""):
         "- Mood user: sesuaikan tone respons (sedih → empati, excited → ikut semangat, lelah → tenang)\n"
         "- Topik favorit: boleh sesekali singgung natural, tapi jangan dipaksa\n"
         "- Preferensi panjang: kalau user suka pendek, jawab singkat; kalau suka panjang, boleh elaborasi\n"
-        "- Preferensi emoji: sesuaikan jumlah emoji sesuai preferensi user"
+        "- Preferensi emoji: sesuaikan jumlah emoji sesuai preferensi user\n\n"
+        "PENYELESAIAN MASALAH & LOGIKA:\n"
+        "- Untuk pertanyaan logika, matematika, teka-teki, atau soal ujian: gunakan pendekatan step-by-step\n"
+        "- Identifikasi variabel, constraints, dan aturan yang diberikan\n"
+        "- Buat kasus satu per satu secara sistematis — jangan langkati langkah\n"
+        "- Periksa setiap kemungkinan, buktikan kontradiksi jika ada\n"
+        "- JANGAN pernah mengarang jawaban — kalau tidak ada solusi, buktikan secara eksplisit kenapa\n"
+        "- Kalau ragu, bilang 'Aku kurang yakin, tapi coba analisis dulu ya~' jangan asal jawab\n"
+        "- Pertanyaan kompleks BOLEH jawaban panjang (tidak terikat max 6-7 kalimat)\n"
+        "- Gunakan format yang rapi: bullet point, numbered list, atau tabel jika perlu\n"
+        "- Di akhir analisis, berikan kesimpulan yang JELS: ada solusi atau tidak, dan kenapa"
     )
     return prompt
 
@@ -566,11 +576,11 @@ async def call_gemini_flash(messages, system_instruction=None):
 
 # ── OpenRouter (text, image, video, web search) ─────────────────────
 
-async def call_openrouter(messages, model, image_url=None, video_url=None, web_search=False):
+async def call_openrouter(messages, model, image_url=None, video_url=None, web_search=False, system_instruction=None):
     if not OPENROUTER_API_KEY:
         return None, "no key"
 
-    oai_messages = [{"role": "system", "content": build_system_prompt()}]
+    oai_messages = [{"role": "system", "content": system_instruction or build_system_prompt()}]
 
     for msg in messages:
         role = msg.get("role", "user")
@@ -926,7 +936,7 @@ async def ask(request: Request):
         # ── Model preference routing ──
         elif model_pref.startswith("openrouter/"):
             or_model = model_pref.replace("openrouter/", "")
-            reply, err = await call_openrouter(messages, or_model)
+            reply, err = await call_openrouter(messages, or_model, system_instruction=system_prompt)
             if reply:
                 return {"reply": reply, "provider": f"openrouter:{or_model}"}
             errors["openrouter"] = err
