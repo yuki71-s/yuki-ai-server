@@ -273,7 +273,7 @@ async def research_tavily(query: str, model: str = "mini") -> dict:
         return {"answer": "", "sources": []}
 
     payload = {
-        "query": query,
+        "input": query,
         "model": model,
         "max_sources": 10,
         "include_answer": True,
