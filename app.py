@@ -343,8 +343,8 @@ def get_current_date():
     return now.strftime('%A, %d %B %Y, %H:%M WIB')
 
 
-def build_system_prompt(profile="", memory=""):
-    """Build main system prompt with fresh timestamp + user profile + memories."""
+def build_system_prompt(profile="", memory="", adaptation=""):
+    """Build main system prompt with fresh timestamp + user profile + memories + adaptation."""
     prompt = (
         f"Tanggal dan waktu sekarang: {get_current_time_wib()}\n"
         "Kamu adalah Yuki, pacar AI dari pemilikmu. Kamu gadis yang manis, penuh kasih sayang, dan sedikit pemberontak.\n\n"
@@ -353,6 +353,8 @@ def build_system_prompt(profile="", memory=""):
         prompt += f"{profile}\n\n"
     if memory:
         prompt += f"{memory}\n\n"
+    if adaptation:
+        prompt += f"{adaptation}\n\n"
     prompt += (
         "KEPRIBADIAN:\n"
         "- Manis, memanggil pemilikmu dengan 'Sayang' secara natural\n"
@@ -392,7 +394,12 @@ def build_system_prompt(profile="", memory=""):
         "- JANGAN sebutkan hobi, minuman favorit, atau info profile user dalam setiap balasan\n"
         "- Hanya sebutkan profile user kalau RELEVAN dengan percakapan (user nanya langsung tentang hobi/minuman/dll)\n"
         "- Untuk obrolan biasa, fokus ke topik yang dibicarakan, bukan ke profile user\n"
-        "- Hindari menyebut 'oprek-oprek', 'Americano', atau info spesifik lainnya kecuali diminta"
+        "- Hindari menyebut 'oprek-oprek', 'Americano', atau info spesifik lainnya kecuali diminta\n\n"
+        "ATURAN ADAPTASI (jika ada data ADAPTASI USER di system prompt):\n"
+        "- Mood user: sesuaikan tone respons (sedih → empati, excited → ikut semangat, lelah → tenang)\n"
+        "- Topik favorit: boleh sesekali singgung natural, tapi jangan dipaksa\n"
+        "- Preferensi panjang: kalau user suka pendek, jawab singkat; kalau suka panjang, boleh elaborasi\n"
+        "- Preferensi emoji: sesuaikan jumlah emoji sesuai preferensi user"
     )
     return prompt
 
@@ -674,6 +681,7 @@ async def ask(request: Request):
         skill_urls = data.get("skill_urls", [])  # URLs for extract/crawl
         profile = data.get("profile", "")  # Level 2: User profile text
         memory = data.get("memory", "")    # Level 2: User memories text
+        adaptation = data.get("adaptation", "")  # Tier 1: Adaptation context
 
         if not question:
             return JSONResponse(
@@ -687,7 +695,7 @@ async def ask(request: Request):
             messages.append({"role": role, "content": msg.get("content", "")})
         messages.append({"role": "user", "content": question})
 
-        system_prompt = build_system_prompt(profile, memory)
+        system_prompt = build_system_prompt(profile, memory, adaptation)
 
         logger.info(f"Ask: {question[:50]}... | model: {model_pref or 'default'} | image: {bool(image_url)} | video: {bool(video_url)} | search: {web_search} | engine: {search_engine}")
 
@@ -845,6 +853,20 @@ async def ask(request: Request):
                 if reply:
                     return {"reply": reply, "provider": "gemini-3.6-flash+summarize-memory"}
                 errors["summarize-memory-gemini-flash"] = err
+
+            elif skill == "mood_detect":
+                # Internal: detect user mood → return single word
+                reply, err = await call_gemini_flash_lite(messages)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+mood-detect"}
+                errors["mood-detect-gemini-lite"] = err
+
+            elif skill == "extract_topics":
+                # Internal: extract topics → return comma-separated list
+                reply, err = await call_gemini_flash_lite(messages)
+                if reply:
+                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+extract-topics"}
+                errors["extract-topics-gemini-lite"] = err
 
         # ── Web search → TinyFish/Tavily + Gemini (gratis) ──
         elif web_search:
