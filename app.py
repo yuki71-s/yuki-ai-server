@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import asyncio
+import time
 import httpx
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -27,6 +28,64 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 
 if not GEMINI_API_KEY and not OPENROUTER_API_KEY:
     raise ValueError("Minimal 1 API key harus diisi.")
+
+# ── Dashboard Stats ──────────────────────────────────────────────────
+_stats = {
+    "start_time": datetime.now(),
+    "total_requests": 0,
+    "total_errors": 0,
+    "model_usage": {},
+    "search_usage": {},
+    "skill_usage": {},
+    "recent_errors": [],
+    "recent_requests": [],
+}
+
+def _track_request(model, skill, search_engine, question, success=True, error=None, response_time=0):
+    _stats["total_requests"] += 1
+    if not success:
+        _stats["total_errors"] += 1
+    # Model usage
+    if model:
+        _stats["model_usage"][model] = _stats["model_usage"].get(model, 0) + 1
+    else:
+        _stats["model_usage"]["default"] = _stats["model_usage"].get("default", 0) + 1
+    # Skill usage
+    if skill:
+        _stats["skill_usage"][skill] = _stats["skill_usage"].get(skill, 0) + 1
+    # Search usage
+    if search_engine:
+        _stats["search_usage"][search_engine] = _stats["search_usage"].get(search_engine, 0) + 1
+    # Recent requests (keep last 20)
+    entry = {
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "model": model or "default",
+        "skill": skill or "-",
+        "search": search_engine or "-",
+        "question": question[:40],
+        "ok": success,
+        "rt": f"{response_time:.1f}s" if response_time else "-",
+    }
+    _stats["recent_requests"].append(entry)
+    if len(_stats["recent_requests"]) > 20:
+        _stats["recent_requests"] = _stats["recent_requests"][-20:]
+    # Recent errors (keep last 10)
+    if error:
+        err_entry = {"time": datetime.now().strftime("%H:%M:%S"), "error": str(error)[:100]}
+        _stats["recent_errors"].append(err_entry)
+        if len(_stats["recent_errors"]) > 10:
+            _stats["recent_errors"] = _stats["recent_errors"][-10:]
+
+def _get_uptime():
+    delta = datetime.now() - _stats["start_time"]
+    days = delta.days
+    hours, rem = divmod(delta.seconds, 3600)
+    minutes, _ = divmod(rem, 60)
+    if days > 0:
+        return f"{days}d {hours}h"
+    elif hours > 0:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
 
 gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
@@ -685,6 +744,99 @@ async def health():
     return {"status": "ok", "bot": "yuki", "providers": providers}
 
 
+@app.get("/stats")
+async def stats():
+    return {
+        "status": "ok",
+        "uptime": _get_uptime(),
+        "total_requests": _stats["total_requests"],
+        "total_errors": _stats["total_errors"],
+        "model_usage": _stats["model_usage"],
+        "search_usage": _stats["search_usage"],
+        "skill_usage": _stats["skill_usage"],
+        "recent_requests": _stats["recent_requests"],
+        "recent_errors": _stats["recent_errors"],
+    }
+
+
+@app.get("/dashboard")
+async def dashboard():
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(DASHBOARD_HTML)
+
+
+DASHBOARD_HTML = """<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yuki Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f0f1a;color:#e0e0e0;min-height:100vh}
+.header{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:20px 30px;border-bottom:2px solid #e94560}
+.header h1{font-size:1.8em;color:#fff}.header span{color:#e94560}
+.container{max-width:1200px;margin:0 auto;padding:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin:16px 0}
+.card{background:#1a1a2e;border-radius:12px;padding:20px;border:1px solid #2a2a4a}
+.card h3{color:#e94560;margin-bottom:12px;font-size:1em;text-transform:uppercase;letter-spacing:1px}
+.stat-val{font-size:2.2em;font-weight:700;color:#fff}
+.stat-label{color:#888;font-size:.85em;margin-top:4px}
+.status-online{color:#00e676}.status-offline{color:#ff5252}
+.bar-chart{display:flex;flex-direction:column;gap:8px}
+.bar-row{display:flex;align-items:center;gap:8px}
+.bar-label{width:120px;font-size:.85em;color:#aaa;text-align:right}
+.bar-track{flex:1;height:22px;background:#2a2a4a;border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s}
+.bar-count{width:40px;font-size:.85em;color:#ccc}
+.colors{--c1:#e94560;--c2:#0f3460;--c3:#533483;--c4:#e94560;--c5:#00e676}
+table{width:100%;border-collapse:collapse;font-size:.85em}
+th{text-align:left;color:#888;padding:8px 6px;border-bottom:1px solid #2a2a4a}
+td{padding:8px 6px;border-bottom:1px solid #1a1a2e}
+.ok{color:#00e676}.err{color:#ff5252}
+.refresh{color:#666;font-size:.8em;text-align:center;padding:10px}
+</style>
+</head>
+<body>
+<div class="header"><h1><span>Yuki</span> Dashboard</h1></div>
+<div class="container">
+<div class="grid">
+  <div class="card"><h3>Status</h3><div id="status" class="stat-val status-online">ONLINE</div><div class="stat-label" id="uptime">-</div></div>
+  <div class="card"><h3>Total Requests</h3><div class="stat-val" id="requests">-</div><div class="stat-label">sejak server start</div></div>
+  <div class="card"><h3>Errors</h3><div class="stat-val" id="errors">-</div><div class="stat-label">total errors</div></div>
+</div>
+<div class="grid" style="grid-template-columns:1fr 1fr">
+  <div class="card"><h3>Model Usage</h3><div class="bar-chart" id="models">-</div></div>
+  <div class="card"><h3>Search Usage</h3><div class="bar-chart" id="searches">-</div></div>
+</div>
+<div class="card" style="margin:16px 0"><h3>Skill Usage</h3><div class="bar-chart" id="skills">-</div></div>
+<div class="card" style="margin:16px 0"><h3>Recent Requests</h3><table><thead><tr><th>Time</th><th>Model</th><th>Skill</th><th>Search</th><th>Question</th><th>RT</th><th>OK</th></tr></thead><tbody id="reqTable"></tbody></table></div>
+<div class="card" style="margin:16px 0"><h3>Recent Errors</h3><table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody id="errTable"></tbody></table></div>
+<div class="refresh">Auto-refresh: 10s</div>
+</div>
+<script>
+const colors=['#e94560','#0f3460','#533483','#00e676','#ff9800','#2196f3'];
+function bars(data,el){
+  const mx=Math.max(...Object.values(data),1);
+  el.innerHTML=Object.entries(data).map(([k,v],i)=>`<div class="bar-row"><div class="bar-label">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${v/mx*100}%;background:${colors[i%colors.length]}"></div></div><div class="bar-count">${v}</div></div>`).join('')||'<div style="color:#666">No data</div>';
+}
+async function refresh(){
+  try{const r=await fetch('/stats');const d=await r.json();
+  document.getElementById('uptime').textContent='Uptime: '+d.uptime;
+  document.getElementById('requests').textContent=d.total_requests;
+  document.getElementById('errors').textContent=d.total_errors;
+  document.getElementById('errors').className='stat-val '+(d.total_errors>0?'err':'');
+  bars(d.model_usage,document.getElementById('models'));
+  bars(d.search_usage,document.getElementById('searches'));
+  bars(d.skill_usage,document.getElementById('skills'));
+  document.getElementById('reqTable').innerHTML=d.recent_requests.reverse().map(r=>`<tr><td>${r.time}</td><td>${r.model}</td><td>${r.skill}</td><td>${r.search}</td><td>${r.question}</td><td>${r.rt}</td><td class="${r.ok?'ok':'err'}">${r.ok?'OK':'FAIL'}</td></tr>`).join('');
+  document.getElementById('errTable').innerHTML=d.recent_errors.reverse().map(r=>`<tr><td>${r.time}</td><td class="err">${r.error}</td></tr>`).join('')||'<tr><td colspan="2" style="color:#666">No errors</td></tr>';
+  }catch(e){document.getElementById('status').textContent='OFFLINE';document.getElementById('status').className='stat-val status-offline';}
+}
+refresh();setInterval(refresh,10000);
+</script>
+</body></html>"""
+
+
 # ── Ask endpoint ─────────────────────────────────────────────────────
 
 @app.post("/ask")
@@ -723,19 +875,25 @@ async def ask(request: Request):
 
         logger.info(f"Ask: {question[:50]}... | model: {model_pref or 'default'} | image: {bool(image_url)} | video: {bool(video_url)} | search: {web_search} | engine: {search_engine}")
 
+        t0 = time.time()
         errors = {}
+        search_eng = search_engine if web_search else ""
+
+        def _ok(reply, provider):
+            _track_request(model_pref, skill, search_eng, question, success=True, response_time=time.time()-t0)
+            return {"reply": reply, "provider": provider}
 
         # ── Video → vision model ──
         if video_url:
             vision_model = model_pref.replace("openrouter/", "") if model_pref.startswith("openrouter/") else VISION_MODELS[0]
             reply, err = await call_openrouter(messages, vision_model, video_url=video_url)
             if reply:
-                return {"reply": reply, "provider": f"openrouter:{vision_model}"}
+                return _ok(reply, f"openrouter:{vision_model}")
             errors["openrouter-video"] = err
 
             reply, err = await call_openrouter(messages, VISION_MODELS[1], video_url=video_url)
             if reply:
-                return {"reply": reply, "provider": f"openrouter:{VISION_MODELS[1]}"}
+                return _ok(reply, f"openrouter:{VISION_MODELS[1]}")
             errors["openrouter-video-fallback"] = err
 
         # ── Gambar → vision model ──
@@ -743,12 +901,12 @@ async def ask(request: Request):
             vision_model = model_pref.replace("openrouter/", "") if model_pref.startswith("openrouter/") else VISION_MODELS[0]
             reply, err = await call_openrouter(messages, vision_model, image_url=image_url)
             if reply:
-                return {"reply": reply, "provider": f"openrouter:{vision_model}"}
+                return _ok(reply, f"openrouter:{vision_model}")
             errors["openrouter-vision"] = err
 
             reply, err = await call_openrouter(messages, VISION_MODELS[1], image_url=image_url)
             if reply:
-                return {"reply": reply, "provider": f"openrouter:{VISION_MODELS[1]}"}
+                return _ok(reply, f"openrouter:{VISION_MODELS[1]}")
             errors["openrouter-vision-fallback"] = err
 
         # ── Skills: translate, summarize, write, extract, crawl, research ──
@@ -759,33 +917,33 @@ async def ask(request: Request):
                 # Translate: langsung pakai Gemini dengan translate prompt
                 reply, err = await call_gemini_flash_lite(messages, system_instruction=TRANSLATE_SYSTEM_PROMPT)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+translate"}
+                    return _ok(reply, "gemini-3.1-flash-lite+translate")
                 errors["translate-gemini-lite"] = err
                 reply, err = await call_gemini_flash(messages, system_instruction=TRANSLATE_SYSTEM_PROMPT)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.6-flash+translate"}
+                    return _ok(reply, "gemini-3.6-flash+translate")
                 errors["translate-gemini-flash"] = err
 
             elif skill == "summarize":
                 # Summarize: langsung pakai Gemini dengan summarize prompt
                 reply, err = await call_gemini_flash_lite(messages, system_instruction=SUMMARIZE_SYSTEM_PROMPT)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+summarize"}
+                    return _ok(reply, "gemini-3.1-flash-lite+summarize")
                 errors["summarize-gemini-lite"] = err
                 reply, err = await call_gemini_flash(messages, system_instruction=SUMMARIZE_SYSTEM_PROMPT)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.6-flash+summarize"}
+                    return _ok(reply, "gemini-3.6-flash+summarize")
                 errors["summarize-gemini-flash"] = err
 
             elif skill == "write":
                 # Write: langsung pakai Gemini dengan write prompt
                 reply, err = await call_gemini_flash_lite(messages, system_instruction=WRITE_SYSTEM_PROMPT)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+write"}
+                    return _ok(reply, "gemini-3.1-flash-lite+write")
                 errors["write-gemini-lite"] = err
                 reply, err = await call_gemini_flash(messages, system_instruction=WRITE_SYSTEM_PROMPT)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.6-flash+write"}
+                    return _ok(reply, "gemini-3.6-flash+write")
                 errors["write-gemini-flash"] = err
 
             elif skill == "extract" and skill_urls:
@@ -796,15 +954,14 @@ async def ask(request: Request):
                         f"URL: {r.get('url', '')}\nKonten:\n{r.get('raw_content', '')[:3000]}"
                         for r in extract_data["results"][:3]
                     ])
-                    # Include last 3 history messages for context
                     skill_history = messages[-3:] if len(messages) > 1 else []
                     extract_messages = skill_history + [{"role": "user", "content": f"[KONTEN YANG DIEKSTRAK]\n{extract_context}\n\n[PERMINTAAN USER]\n{question}"}]
                     reply, err = await call_gemini_flash_lite(extract_messages, system_instruction=EXTRACT_SYSTEM_PROMPT)
                     if reply:
-                        return {"reply": reply, "provider": "gemini-3.1-flash-lite+tavily-extract"}
+                        return _ok(reply, "gemini-3.1-flash-lite+tavily-extract")
                     errors["extract-gemini-lite"] = err
                 else:
-                    return {"reply": "Maaf sayang, gagal ekstrak konten dari URL-nya 😅", "provider": "extract-failed"}
+                    return _ok("Maaf sayang, gagal ekstrak konten dari URL-nya 😅", "extract-failed")
 
             elif skill == "crawl" and skill_urls:
                 # Crawl: Tavily crawl + Gemini summarize
@@ -815,15 +972,14 @@ async def ask(request: Request):
                         f"Page: {p.get('url', '')}\n{p.get('raw_content', '')[:2000]}"
                         for p in pages
                     ])
-                    # Include last 3 history messages for context
                     skill_history = messages[-3:] if len(messages) > 1 else []
                     crawl_messages = skill_history + [{"role": "user", "content": f"[HASIL CRAWL]\n{crawl_context}\n\n[PERMINTAAN USER]\n{question}"}]
                     reply, err = await call_gemini_flash_lite(crawl_messages, system_instruction=EXTRACT_SYSTEM_PROMPT)
                     if reply:
-                        return {"reply": reply, "provider": "gemini-3.1-flash-lite+tavily-crawl"}
+                        return _ok(reply, "gemini-3.1-flash-lite+tavily-crawl")
                     errors["crawl-gemini-lite"] = err
                 else:
-                    return {"reply": "Maaf sayang, gagal crawl website-nya 😅", "provider": "crawl-failed"}
+                    return _ok("Maaf sayang, gagal crawl website-nya 😅", "crawl-failed")
 
             elif skill == "research":
                 # Research: Tavily research + Gemini summarize
@@ -836,13 +992,12 @@ async def ask(request: Request):
                     research_messages = skill_history + [{"role": "user", "content": f"[HASIL RESEARCH]\n{research_context}\n\n[PERMINTAAN USER]\n{question}"}]
                     reply, err = await call_gemini_flash_lite(research_messages, system_instruction=build_research_prompt())
                     if reply:
-                        return {"reply": reply, "provider": "gemini-3.1-flash-lite+tavily-research"}
+                        return _ok(reply, "gemini-3.1-flash-lite+tavily-research")
                     errors["research-gemini-lite"] = err
                 else:
-                    return {"reply": "Maaf sayang, gagal melakukan riset 😅", "provider": "research-failed"}
+                    return _ok("Maaf sayang, gagal melakukan riset 😅", "research-failed")
 
             elif skill == "extract_facts":
-                # Internal skill: extract user facts dari conversation → return JSON
                 EXTRACT_FACTS_PROMPT = (
                     "Kamu adalah sistem ekstraksi fakta.\n"
                     "Extract fakta tentang USER dari percakapan yang diberikan.\n"
@@ -852,15 +1007,14 @@ async def ask(request: Request):
                 )
                 reply, err = await call_gemini_flash_lite(messages, system_instruction=EXTRACT_FACTS_PROMPT)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+extract-facts"}
+                    return _ok(reply, "gemini-3.1-flash-lite+extract-facts")
                 errors["extract-facts-gemini-lite"] = err
                 reply, err = await call_gemini_flash(messages, system_instruction=EXTRACT_FACTS_PROMPT)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.6-flash+extract-facts"}
+                    return _ok(reply, "gemini-3.6-flash+extract-facts")
                 errors["extract-facts-gemini-flash"] = err
 
             elif skill == "summarize_memory":
-                # Internal skill: summarize conversation → return structured summary
                 SUMMARIZE_MEMORY_PROMPT = (
                     "Kamu adalah sistem ringkasan percakapan.\n"
                     "Ringkas percakapan berikut dalam 1-2 kalimat.\n"
@@ -871,25 +1025,23 @@ async def ask(request: Request):
                 )
                 reply, err = await call_gemini_flash_lite(messages, system_instruction=SUMMARIZE_MEMORY_PROMPT)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+summarize-memory"}
+                    return _ok(reply, "gemini-3.1-flash-lite+summarize-memory")
                 errors["summarize-memory-gemini-lite"] = err
                 reply, err = await call_gemini_flash(messages, system_instruction=SUMMARIZE_MEMORY_PROMPT)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.6-flash+summarize-memory"}
+                    return _ok(reply, "gemini-3.6-flash+summarize-memory")
                 errors["summarize-memory-gemini-flash"] = err
 
             elif skill == "mood_detect":
-                # Internal: detect user mood → return single word
                 reply, err = await call_gemini_flash_lite(messages)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+mood-detect"}
+                    return _ok(reply, "gemini-3.1-flash-lite+mood-detect")
                 errors["mood-detect-gemini-lite"] = err
 
             elif skill == "extract_topics":
-                # Internal: extract topics → return comma-separated list
                 reply, err = await call_gemini_flash_lite(messages)
                 if reply:
-                    return {"reply": reply, "provider": "gemini-3.1-flash-lite+extract-topics"}
+                    return _ok(reply, "gemini-3.1-flash-lite+extract-topics")
                 errors["extract-topics-gemini-lite"] = err
 
         # ── Web search → TinyFish/Tavily + Gemini (gratis) ──
@@ -929,7 +1081,7 @@ async def ask(request: Request):
                 for attempt in range(2):
                     reply, err = await call_gemini_flash_lite(search_messages, system_instruction=build_search_prompt())
                     if reply:
-                        return {"reply": reply, "provider": f"gemini-3.1-flash-lite+{search_provider}-search"}
+                        return _ok(reply, f"gemini-3.1-flash-lite+{search_provider}-search")
                     errors[f"gemini-lite-search-attempt{attempt+1}"] = err
                     if attempt == 0:
                         await asyncio.sleep(3)
@@ -937,14 +1089,14 @@ async def ask(request: Request):
                 # Fallback ke Gemini 3.6 Flash
                 reply, err = await call_gemini_flash(search_messages, system_instruction=build_search_prompt())
                 if reply:
-                    return {"reply": reply, "provider": f"gemini-3.6-flash+{search_provider}-search"}
+                    return _ok(reply, f"gemini-3.6-flash+{search_provider}-search")
                 errors["gemini-flash-search"] = err
 
             # Fallback ke OpenRouter search
             or_model = model_pref.replace("openrouter/", "") if model_pref.startswith("openrouter/") else "google/gemini-2.5-flash"
             reply, err = await call_openrouter(messages, or_model, web_search=True)
             if reply:
-                return {"reply": reply, "provider": f"openrouter:{or_model}"}
+                return _ok(reply, f"openrouter:{or_model}")
             errors["openrouter-search-fallback"] = err
 
         # ── Model preference routing ──
@@ -952,40 +1104,41 @@ async def ask(request: Request):
             or_model = model_pref.replace("openrouter/", "")
             reply, err = await call_openrouter(messages, or_model, system_instruction=system_prompt)
             if reply:
-                return {"reply": reply, "provider": f"openrouter:{or_model}"}
+                return _ok(reply, f"openrouter:{or_model}")
             errors["openrouter"] = err
 
         elif model_pref == "gemini/flash":
             reply, err = await call_gemini_flash(messages, system_instruction=system_prompt)
             if reply:
-                return {"reply": reply, "provider": "gemini-3.6-flash"}
+                return _ok(reply, "gemini-3.6-flash")
             errors["gemini-flash"] = err
 
         elif model_pref == "gemini":
             reply, err = await call_gemini_flash_lite(messages, system_instruction=system_prompt)
             if reply:
-                return {"reply": reply, "provider": "gemini-3.1-flash-lite"}
+                return _ok(reply, "gemini-3.1-flash-lite")
             errors["gemini-flash-lite"] = err
 
         else:
             # Default: Gemini 3.1 Flash Lite → Gemini 3.6 Flash → OpenRouter
             reply, err = await call_gemini_flash_lite(messages, system_instruction=system_prompt)
             if reply:
-                return {"reply": reply, "provider": "gemini-3.1-flash-lite"}
+                return _ok(reply, "gemini-3.1-flash-lite")
             errors["gemini-flash-lite"] = err
 
             reply, err = await call_gemini_flash(messages, system_instruction=system_prompt)
             if reply:
-                return {"reply": reply, "provider": "gemini-3.6-flash"}
+                return _ok(reply, "gemini-3.6-flash")
             errors["gemini-flash"] = err
 
             if OPENROUTER_API_KEY:
                 reply, err = await call_openrouter(messages, "google/gemini-2.5-flash")
                 if reply:
-                    return {"reply": reply, "provider": "openrouter:gemini-2.5-flash"}
+                    return _ok(reply, "openrouter:gemini-2.5-flash")
                 errors["openrouter-fallback"] = err
 
         logger.error(f"All providers failed: {errors}")
+        _track_request(model_pref, skill, search_eng, question, success=False, error="all providers failed", response_time=time.time()-t0)
         return JSONResponse(
             status_code=503,
             content={"error": "all providers failed", "details": errors},
@@ -993,6 +1146,7 @@ async def ask(request: Request):
 
     except Exception as e:
         logger.error(f"Error: {type(e).__name__}: {e}", exc_info=True)
+        _track_request(model_pref if 'model_pref' in dir() else "", skill if 'skill' in dir() else "", search_eng if 'search_eng' in dir() else "", question[:50] if 'question' in dir() else "", success=False, error=str(e)[:100])
         return JSONResponse(
             status_code=500,
             content={"error": f"{type(e).__name__}: {str(e)}"},
