@@ -9,7 +9,7 @@ import httpx
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from google import genai
 from google.genai.types import GenerateContentConfig, Blob, Part
 
@@ -1807,6 +1807,14 @@ async def favicon():
     return Response(content=svg, media_type="image/svg+xml")
 
 
+OG_IMAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "og_image.png")
+
+
+@app.get("/og-image.png")
+async def og_image():
+    return FileResponse(OG_IMAGE, media_type="image/png")
+
+
 @app.get("/")
 async def portfolio():
     from fastapi.responses import HTMLResponse
@@ -1818,6 +1826,16 @@ PORTFOLIO_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yuki — AI Assistant</title>
+<meta name="description" content="Yuki — personal AI assistant Telegram dengan web search, vision, cuaca, memory & 10+ skill. Coba demo langsung di browser tanpa install!">
+<meta name="theme-color" content="#0F172A">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://yuki-ai.tech/">
+<meta property="og:title" content="Yuki — Personal AI Assistant">
+<meta property="og:description" content="Web search, vision, cuaca, memory & 10+ skill. Ngobrol langsung sama Yuki dari browser — gratis, tanpa install!">
+<meta property="og:image" content="https://yuki-ai.tech/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
@@ -1898,6 +1916,21 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
 .cta:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(99,102,241,.45)}
 .footer{text-align:center;padding:40px 24px;color:#475569;font-size:.8em;border-top:1px solid rgba(255,255,255,.05)}
 .footer a{color:#818CF8;text-decoration:none}
+.hero-btns{display:flex;gap:14px;justify-content:center;margin-top:32px;flex-wrap:wrap}
+.btn-primary{display:inline-flex;align-items:center;gap:10px;padding:14px 30px;border-radius:14px;background:linear-gradient(135deg,#6366F1,#8B5CF6);color:#fff;font-weight:600;font-size:.95em;text-decoration:none;transition:transform .2s,box-shadow .2s}
+.btn-primary:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(99,102,241,.45)}
+.btn-ghost{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;border-radius:14px;border:1px solid rgba(255,255,255,.16);color:#cbd5e1;font-weight:600;font-size:.95em;text-decoration:none;transition:border-color .2s,color .2s,transform .2s}
+.btn-ghost:hover{border-color:#818CF8;color:#fff;transform:translateY(-3px)}
+.about-card{max-width:760px;margin:0 auto;padding:36px;display:flex;gap:28px;align-items:flex-start}
+.about-avatar{width:112px;height:112px;border-radius:26px;flex-shrink:0;border:2px solid rgba(129,140,248,.5);box-shadow:0 0 0 6px rgba(129,140,248,.12),0 12px 40px rgba(99,102,241,.35)}
+.about-body h3{color:#fff;font-size:1.25em;margin-bottom:12px}
+.about-role{color:#818CF8;font-size:.75em;font-weight:500}
+.about-body p{color:#94a3b8;font-size:.9em;line-height:1.75;margin-bottom:12px;text-align:left}
+.about-stats{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 18px}
+.chip{padding:8px 16px;border-radius:99px;background:rgba(129,140,248,.09);border:1px solid rgba(129,140,248,.22);color:#c7d2fe;font-size:.78em;font-weight:500}
+.gh-mini{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cbd5e1;font-size:.82em;font-weight:600;text-decoration:none;transition:all .2s}
+.gh-mini:hover{border-color:#818CF8;color:#fff;transform:translateY(-2px)}
+@media(max-width:700px){.about-card{flex-direction:column;align-items:center;text-align:center}.about-stats{justify-content:center}}
 @media(max-width:768px){
 .nav-links a{margin-left:14px;font-size:.8em}
 .nav-links a.hide-m{display:none}
@@ -1927,6 +1960,7 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
       <a href="#demo">Demo</a>
       <a href="#fitur">Fitur</a>
       <a href="#tech" class="hide-m">Tech</a>
+      <a href="#tentang" class="hide-m">Tentang</a>
       <a href="#kontak">Kontak</a>
     </div>
   </div>
@@ -1935,6 +1969,10 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
   <div class="hero-badge"><div class="dot"></div> Live &amp; Running</div>
   <h1>Meet <span>Yuki</span></h1>
   <p>Personal AI assistant yang dibangun dengan hati. Web search, vision, cuaca, memory, dan 10+ skill — semuanya open-source.</p>
+  <div class="hero-btns">
+    <a class="btn-primary" href="#demo">&#127918; Coba Demo</a>
+    <a class="btn-ghost" href="https://github.com/yuki71-s" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg> Lihat Kode</a>
+  </div>
 </section>
 <div class="section" id="demo">
   <div class="section-title">Coba <span>Langsung</span></div>
@@ -1984,6 +2022,25 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
     <div class="tech-item glass"><div class="tech-dot" style="background:rgba(99,102,241,.15)"><span class="fb" style="color:#6366F1">N</span><img src="https://www.google.com/s2/favicons?domain=nginx.com&amp;sz=128" alt="Nginx" loading="lazy" onload="this.parentNode.classList.add('loaded')" onerror="this.remove()"></div><div class="name">Nginx</div><div class="desc">Reverse proxy</div></div>
   </div>
 </div>
+<div class="section" id="tentang">
+  <div class="section-title">Tentang <span>Pembuat</span></div>
+  <div class="section-sub">Orang di balik Yuki</div>
+  <div class="about-card glass">
+    <img class="about-avatar" src="https://avatars.githubusercontent.com/u/317451300?v=4" alt="Y71" loading="lazy">
+    <div class="about-body">
+      <h3>Y71 <span class="about-role">— Developer &amp; Builder</span></h3>
+      <p>Halo! Aku Y71 — developer yang suka ngoprek dan nggak bisa jauh dari kopi americano &#9749;. Yuki lahir dari satu rasa penasaran: seberapa jauh satu orang bisa membangun AI assistant sendiri, dari nol sampai online 24/7?</p>
+      <p>Jawabannya: bisa. Tanpa framework jadi, tanpa jasa siapa pun — arsitektur, kode, keamanan, deployment, sampai dashboard monitoring yang sedang kamu lihat ini, semuanya dirancang dan ditulis sendiri. Gagal, perbaiki, ulangi. Itu siklusnya.</p>
+      <div class="about-stats">
+        <span class="chip">&#128640; 2 Layanan Produksi</span>
+        <span class="chip">&#129504; 10+ Skill Aktif</span>
+        <span class="chip">&#9201;&#65039; Online 24/7</span>
+        <span class="chip">&#128214; 100% Open Source</span>
+      </div>
+      <a class="gh-mini" href="https://github.com/yuki71-s" target="_blank" rel="noopener"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg> Ikuti di GitHub</a>
+    </div>
+  </div>
+</div>
 <div class="section contact" id="kontak">
   <div class="section-title">Punya Ide <span>Serupa?</span></div>
   <div class="section-sub">Mau bangun AI assistant seperti Yuki, atau sekadar ngobrol soal project? Hubungi aku!</div>
@@ -1992,7 +2049,7 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
     github.com/yuki71-s
   </a>
 </div>
-<div class="footer"><p>Built with &#x2661; by <a href="https://github.com/yuki71-s">Y71</a> &middot; Powered by <a href="https://github.com/yuki71-s/yuki-bot">Yuki Bot</a> &middot; 2026</p></div>
+<div class="footer"><p>&copy; 2026 Y71 &middot; Built with &#9829; dan kopi americano &middot; Powered by Yuki</p></div>
 <script>
 (function(){
   if(!window.THREE) return;
