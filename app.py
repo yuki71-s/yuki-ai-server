@@ -362,6 +362,137 @@ async def research_tavily(query: str, model: str = "mini") -> dict:
         return {"answer": "", "sources": []}
 
 
+# ── Open-Meteo Weather (gratis, no API key) ──────────────────────
+
+WMO_WEATHER_CODES = {
+    0: "Cerah", 1: "Cerah sebagian", 2: "Berawan sebagian", 3: "Mendung",
+    45: "Berkabut", 48: "Berkabut es",
+    51: "Gerimis ringan", 53: "Gerimis", 55: "Gerimis lebat",
+    56: "Gerimis beku ringan", 57: "Gerimis beku",
+    61: "Hujan ringan", 63: "Hujan sedang", 65: "Hujan lebat",
+    66: "Hujan beku ringan", 67: "Hujan beku",
+    71: "Salju ringan", 73: "Salju sedang", 75: "Salju lebat",
+    77: "Butiran salju",
+    80: "Hujan shower ringan", 81: "Hujan shower", 82: "Hujan shower lebat",
+    85: "Salju shower ringan", 86: "Salju shower lebat",
+    95: "Badai", 96: "Badai + hujan es ringan", 99: "Badai + hujan es lebat",
+}
+
+WMO_EMOJI = {
+    0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️",
+    45: "🌫️", 48: "🌫️",
+    51: "🌦️", 53: "🌧️", 55: "🌧️",
+    56: "🌧️", 57: "🌧️",
+    61: "🌧️", 63: "🌧️", 65: "🌧️",
+    66: "🌧️", 67: "🌧️",
+    71: "❄️", 73: "❄️", 75: "❄️",
+    77: "❄️",
+    80: "🌦️", 81: "🌧️", 82: "⛈️",
+    85: "🌨️", 86: "🌨️",
+    95: "⛈️", 96: "⛈️", 99: "⛈️",
+}
+
+
+async def get_city_coords(city_name: str) -> dict:
+    """Geocode city name → lat/lon via Open-Meteo (free, no key)."""
+    try:
+        url = "https://geocoding-api.open-meteo.com/v1/search"
+        params = {"name": city_name, "count": 1, "language": "id"}
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                data = await resp.json()
+                results = data.get("results", [])
+                if results:
+                    r = results[0]
+                    return {"lat": r["latitude"], "lon": r["longitude"], "name": r.get("name", city_name), "country": r.get("country", "")}
+                return {}
+    except Exception as e:
+        logger.error(f"Geocoding error: {e}")
+        return {}
+
+
+async def get_weather(city_name: str) -> dict:
+    """Get current weather + daily forecast via Open-Meteo (free, no key).
+    Returns dict with current conditions + tomorrow forecast."""
+    coords = await get_city_coords(city_name)
+    if not coords:
+        return {"error": f"Kota '{city_name}' tidak ditemukan."}
+
+    try:
+        url = "https://api.open-meteo.com/v1/forecast"
+        params = {
+            "latitude": coords["lat"],
+            "longitude": coords["lon"],
+            "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,precipitation",
+            "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code",
+            "timezone": "Asia/Jakarta",
+            "forecast_days": 2,
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                data = await resp.json()
+
+        current = data.get("current", {})
+        daily = data.get("daily", {})
+
+        code = current.get("weather_code", 0)
+        weather_desc = WMO_WEATHER_CODES.get(code, "Tidak diketahui")
+        weather_emoji = WMO_EMOJI.get(code, "🌡️")
+
+        result = {
+            "city": coords["name"],
+            "country": coords.get("country", ""),
+            "current": {
+                "temp": current.get("temperature_2m"),
+                "feels_like": current.get("apparent_temperature"),
+                "humidity": current.get("relative_humidity_2m"),
+                "wind_speed": current.get("wind_speed_10m"),
+                "precipitation": current.get("precipitation", 0),
+                "code": code,
+                "description": weather_desc,
+                "emoji": weather_emoji,
+            },
+            "today": {},
+            "tomorrow": {},
+        }
+
+        if daily.get("time") and len(daily["time"]) >= 2:
+            result["today"] = {
+                "max": daily["temperature_2m_max"][0],
+                "min": daily["temperature_2m_min"][0],
+                "rain_chance": daily.get("precipitation_probability_max", [None])[0],
+                "code": daily.get("weather_code", [0])[0],
+            }
+            result["tomorrow"] = {
+                "date": daily["time"][1] if len(daily["time"]) > 1 else "",
+                "max": daily["temperature_2m_max"][1] if len(daily["temperature_2m_max"]) > 1 else None,
+                "min": daily["temperature_2m_min"][1] if len(daily["temperature_2m_min"]) > 1 else None,
+                "rain_chance": daily.get("precipitation_probability_max", [None, None])[1] if len(daily.get("precipitation_probability_max", [])) > 1 else None,
+                "code": daily.get("weather_code", [0, 0])[1] if len(daily.get("weather_code", [])) > 1 else 0,
+            }
+
+        logger.info(f"Weather OK: {coords['name']} → {weather_desc} {current.get('temperature_2m')}°C")
+        return result
+
+    except Exception as e:
+        logger.error(f"Weather error: {type(e).__name__}: {e}")
+        return {"error": f"Gagal mengambil data cuaca: {str(e)}"}
+
+
+WEATHER_SYSTEM_PROMPT = (
+    "Kamu adalah Yuki. Tugas kamu adalah menyampaikan informasi cuaca dengan cara yang hangat dan personal.\n\n"
+    "ATURAN:\n"
+    "- Sampaikan data cuaca dengan emoji yang sesuai\n"
+    "- Gunakan bahasa Indonesia yang santai dan hangat\n"
+    "- Sertakan: suhu saat ini, suhu terasa, kelembaban, angin, kondisi cuaca\n"
+    "- Sertakan forecast hari ini dan besok jika ada\n"
+    "- Berikan saran singkat (misal: bawa payung kalau hujan, minum yang banyak kalau panas)\n"
+    "- Panggil user 'kamu' atau 'sayang'\n"
+    "- Jangan terlalu panjang, cukup 3-5 baris\n"
+    "- Jika data tidak lengkap, sampaikan apa yang ada saja\n"
+)
+
+
 def rewrite_search_query(question: str, messages: list) -> str:
     """Rewrite search query dengan context dari history percakapan.
     Contoh: 'link vidio terbaru nya' → 'RumahEditor YouTube channel latest video'"""
@@ -1043,6 +1174,49 @@ async def ask(request: Request):
                 if reply:
                     return _ok(reply, "gemini-3.1-flash-lite+extract-topics")
                 errors["extract-topics-gemini-lite"] = err
+
+            elif skill == "weather":
+                # Extract city name from question
+                city = question.lower()
+                for sw in ["cuaca ", "weather ", "cek cuaca ", "info cuaca ", "cuaca di ", "cuaca kota "]:
+                    city = city.replace(sw, "")
+                city = city.strip() or "Jakarta"
+
+                weather_data = await get_weather(city)
+                if "error" in weather_data:
+                    return _ok(weather_data["error"], "weather-error")
+
+                # Format weather context for Gemini
+                c = weather_data["current"]
+                t = weather_data.get("today", {})
+                tm = weather_data.get("tomorrow", {})
+
+                weather_context = (
+                    f"Kota: {weather_data['city']}, {weather_data.get('country', '')}\n"
+                    f"Saat ini: {c['description']} {c['emoji']}\n"
+                    f"Suhu: {c['temp']}°C (terasa {c['feels_like']}°C)\n"
+                    f"Kelembaban: {c['humidity']}%\n"
+                    f"Angin: {c['wind_speed']} km/h\n"
+                    f"Hujan: {c['precipitation']} mm\n"
+                )
+                if t:
+                    weather_context += f"\nHari ini: Max {t.get('max')}°C / Min {t.get('min')}°C"
+                    if t.get("rain_chance") is not None:
+                        weather_context += f" | Hujan {t['rain_chance']}%"
+                if tm and tm.get("max"):
+                    weather_context += f"\nBesok ({tm.get('date', '')}): Max {tm['max']}°C / Min {tm['min']}°C"
+                    if tm.get("rain_chance") is not None:
+                        weather_context += f" | Hujan {tm['rain_chance']}%"
+
+                weather_messages = [{"role": "user", "content": f"[DATA CUACA]\n{weather_context}\n\n[PERMINTAAN USER]\n{question}"}]
+                reply, err = await call_gemini_flash_lite(weather_messages, system_instruction=WEATHER_SYSTEM_PROMPT)
+                if reply:
+                    return _ok(reply, "gemini-3.1-flash-lite+weather")
+                errors["weather-gemini-lite"] = err
+                reply, err = await call_gemini_flash(weather_messages, system_instruction=WEATHER_SYSTEM_PROMPT)
+                if reply:
+                    return _ok(reply, "gemini-3.6-flash+weather")
+                errors["weather-gemini-flash"] = err
 
         # ── Web search → TinyFish/Tavily + Gemini (gratis) ──
         elif web_search:
