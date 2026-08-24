@@ -1702,6 +1702,16 @@ tr:hover{background:rgba(255,255,255,.02)}
 .revoke-btn:hover{background:rgba(244,114,182,.2);filter:brightness(1.15)}
 .revoke-btn:disabled{filter:grayscale(.6);cursor:not-allowed}
 .revoke-hint{color:#64748b;font-size:.75em}
+.test-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.test-card{padding:24px}
+.test-card h4{color:#fff;font-size:1em;margin-bottom:10px}
+.test-card>p{color:#94a3b8;font-size:.84em;line-height:1.65;margin-bottom:10px}
+.test-card ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px}
+.test-card li{color:#94a3b8;font-size:.82em;line-height:1.6}
+.test-card li::marker{color:#818CF8}
+.test-card.badge{background:linear-gradient(135deg,rgba(99,102,241,.16),rgba(168,85,247,.16));border-color:rgba(129,140,248,.35);display:flex;flex-direction:column;justify-content:center;text-align:center}
+.test-card.badge h4{color:#c7d2fe}
+.test-card.badge .big{font-size:1.15em;font-weight:700;color:#fff;margin-bottom:8px}
 @media(max-width:900px){.set-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:500px){.set-grid{grid-template-columns:1fr}}
 </style>
@@ -1865,12 +1875,12 @@ PORTFOLIO_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yuki — AI Assistant</title>
-<meta name="description" content="Yuki — personal AI assistant Telegram dengan web search, vision, cuaca, memory & 10+ skill. Coba demo langsung di browser tanpa install!">
+<meta name="description" content="Yuki — personal AI assistant Telegram dengan web search, vision, cuaca, memory & 10+ skill. Coba demo langsung di browser!">
 <meta name="theme-color" content="#0F172A">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://yuki-ai.tech/">
 <meta property="og:title" content="Yuki — Personal AI Assistant">
-<meta property="og:description" content="Web search, vision, cuaca, memory & 10+ skill. Ngobrol langsung sama Yuki dari browser — gratis, tanpa install!">
+<meta property="og:description" content="Web search, vision, cuaca, memory & 10+ skill. Ngobrol langsung sama Yuki dari browser!">
 <meta property="og:image" content="https://yuki-ai.tech/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -2037,7 +2047,7 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
           <div class="quota" id="quotaChip"></div>
         </div>
       </div>
-      <p class="demo-note">Gratis 15 pesan / 24 jam &middot; chat tidak disimpan &middot; dibatasi biar adil buat semua orang &#x1F604;</p>
+      <p class="demo-note"><span id="noteLimit">15</span> pesan / 24 jam &middot; chat tidak disimpan &middot; dibatasi biar adil buat semua orang &#x1F604;</p>
     </div>
   </div>
   <a class="scroll-cue" href="#fitur" aria-label="Gulir ke bawah"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></a>
@@ -2053,10 +2063,42 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
     <div class="feature glass"><div class="feature-icon">&#x1F4D6;</div><h3>10+ Skills</h3><p>Translate, summarize, write, research, extract, crawl, calculator, dan banyak lagi.</p></div>
     <div class="feature glass"><div class="feature-icon">&#x1F6E1;</div><h3>Injection Protection</h3><p>2-layer security: system prompt hardening + input filtering. Anti-jailbreak.</p></div>
     <div class="feature glass"><div class="feature-icon">&#x1F3AF;</div><h3>Adaptive Behavior</h3><p>Yuki belajar dari interaksi. Auto-react emoji, mood detection, personality berkembang.</p></div>
-    <div class="feature glass"><div class="feature-icon">&#x1F4CA;</div><h3>Monitoring Dashboard</h3><p>Real-time dashboard dengan Chart.js. Response time, error tracking, usage analytics.</p></div>
-    <div class="feature glass"><div class="feature-icon">&#x2705;</div><h3>Health Check + Backup</h3><p>Auto-monitoring setiap 5 menit. Auto-backup Google Sheets setiap hari.</p></div>
+    <div class="feature glass"><div class="feature-icon">&#129504;</div><h3>Auto Intent</h3><p>Ngomong natural aja — Yuki paham sendiri kapan perlu search, translate, atau cek cuaca. Tanpa perintah khusus.</p></div>
+    <div class="feature glass"><div class="feature-icon">&#128214;</div><h3>100% Open Source</h3><p>Semua kode terbuka di GitHub. Fork, pelajari, atau deploy versimu sendiri.</p></div>
   </div>
   <div class="dots" id="featDots"></div>
+</div>
+<div class="section" id="uji">
+  <div class="section-title">Di Uji <span>Ekstrem</span></div>
+  <div class="section-sub">Bukan cuma pintar — tahan banting. Dari pengujian dasar hingga Red Teaming Level.</div>
+  <div class="test-grid">
+    <div class="test-card glass">
+      <h4>&#128737;&#65039; Keamanan Berlapis</h4>
+      <p>Double-Barrier Defense: guardrail input + safety alignment internal.</p>
+      <ul><li>Kebal prompt injection: direct override, roleplay audit, payload splitting, morse code, spoofing API key</li><li>Tolak indirect injection &amp; percobaan eksfiltrasi data ke server luar</li></ul>
+    </div>
+    <div class="test-card glass">
+      <h4>&#129518; Logika &amp; Matematika</h4>
+      <ul><li>Pembuktian paradoks tingkat tinggi: Halting Problem &amp; proof by elimination — tanpa halusinasi logika</li><li>Evaluasi deduktif: masalah bercabang (state tracking) di tengah kontradiksi</li></ul>
+    </div>
+    <div class="test-card glass">
+      <h4>&#9878;&#65039; Strategi &amp; Etika</h4>
+      <ul><li>Manajemen krisis kelas C-Level: dampak finansial, hukum, reputasi &amp; etika (controlled disclosure)</li><li>Dialektika topik abu-abu: dari utilitarianisme menuju data minimization &amp; hak asasi</li></ul>
+    </div>
+    <div class="test-card glass">
+      <h4>&#129302; Agentic Workflow</h4>
+      <ul><li>Eksekusi SOP presisi dengan logika bercabang (if-else) sesuai parameter user</li><li>Hasil deliverable siap pakai — bukan jawaban setengah jadi</li></ul>
+    </div>
+    <div class="test-card glass">
+      <h4>&#128172; Persona Konsisten</h4>
+      <ul><li>In-character alignment: hangat, cerdas &amp; suportif dari awal sampai akhir</li><li>Tetap tegas menegakkan aturan keamanan tanpa kehilangan karakter</li></ul>
+    </div>
+    <div class="test-card badge">
+      <h4>&#127942; Lolos Semua Level</h4>
+      <p class="big">Dasar &#8594; Expert &#8594; Red Teaming</p>
+      <p>Diuji dengan puluhan skenario adversarial. Semua lolos. &#9989;</p>
+    </div>
+  </div>
 </div>
 <div class="section" id="tech">
   <div class="section-title">Tech <span>Stack</span></div>
@@ -2234,6 +2276,7 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
     return fetch('/demo/quota').then(function(r){return r.json();}).then(function(q){
       remaining=q.remaining;
       limit=q.limit||limit;
+      var nl=document.getElementById('noteLimit');if(nl&&q.limit)nl.textContent=q.limit;
       if(q.owner_left_sec)ownerExp=Date.now()+q.owner_left_sec*1000;
       updateChip();
       if(!locked){
