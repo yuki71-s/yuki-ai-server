@@ -1111,7 +1111,7 @@ async function refresh(){
     makeDonut(d.model_usage,document.getElementById('modelChart'));
     makeDonut(d.skill_usage,document.getElementById('skillChart'));
     makeDonut(d.search_usage,document.getElementById('searchChart'));
-    makeTimeline(Object.keys(d.hourly_requests).map(k=>k.replace(/^\d{2}-\d{2} ?/,'')),Object.values(d.hourly_requests),document.getElementById('timelineChart'));
+    makeTimeline(Object.keys(d.hourly_requests).map(k=>k.length>5?k.slice(6):k),Object.values(d.hourly_requests),document.getElementById('timelineChart'));
     makeBar(Object.keys(d.model_avg_rt),Object.values(d.model_avg_rt),document.getElementById('rtChart'));
     document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+r.time+'</td><td>'+r.model+'</td><td>'+(r.skill!=='-'?'<span class="badge badge-green">'+r.skill+'</span>':'<span style="color:#475569">-</span>')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.question+'</td><td>'+r.rt+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">FAIL</span>')+'</td></tr>').join('');
     document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+r.time+'</td><td class="err" style="font-size:.8em">'+r.error+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#475569">No errors</td></tr>';
