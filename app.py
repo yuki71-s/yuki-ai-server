@@ -32,6 +32,8 @@ if not GEMINI_API_KEY and not OPENROUTER_API_KEY:
     raise ValueError("Minimal 1 API key harus diisi.")
 
 # ── Dashboard Stats ──────────────────────────────────────────────────
+STATS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stats_data.json")
+
 _stats = {
     "start_time": datetime.now(),
     "total_requests": 0,
@@ -41,10 +43,64 @@ _stats = {
     "skill_usage": {},
     "model_response_times": {},
     "skill_response_times": {},
-    "hourly_requests": {},
+    "hourly_requests": {},   # key: "%m-%d %H:00"
     "recent_errors": [],
     "recent_requests": [],
 }
+
+
+def _prune_hourly():
+    """Buang data per-jam yang sudah lewat 24 jam."""
+    now = datetime.strptime(datetime.now().strftime("%m-%d %H:%M"), "%m-%d %H:%M")
+    cutoff = now - timedelta(hours=24)
+    kept = {}
+    for k, v in _stats["hourly_requests"].items():
+        try:
+            t = datetime.strptime(k, "%m-%d %H:00")
+        except ValueError:
+            continue  # format lama ("%H:00"), buang saja
+        # t > now berarti lintas tahun (Des -> Jan), tetap disimpan
+        if t >= cutoff or t > now:
+            kept[k] = v
+    _stats["hourly_requests"] = kept
+
+
+def _save_stats():
+    """Simpan stats ke file JSON secara atomic biar nggak korup."""
+    try:
+        _prune_hourly()
+        payload = {k: v for k, v in _stats.items() if k != "start_time"}
+        tmp_path = STATS_FILE + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+        os.replace(tmp_path, STATS_FILE)
+    except Exception as e:
+        logger.error(f"Gagal simpan stats: {e}")
+
+
+def _load_stats():
+    """Muat stats lama dari file JSON saat startup (biar nggak reset pas restart)."""
+    try:
+        if not os.path.exists(STATS_FILE):
+            logger.info("Tidak ada file stats lama, mulai dari nol.")
+            return
+        with open(STATS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for k in _stats:
+            if k == "start_time":
+                continue
+            if k in data:
+                _stats[k] = data[k]
+        _prune_hourly()
+        logger.info(
+            f"Stats dimuat dari file: {_stats['total_requests']} requests "
+            f"(dari {_stats['start_time'].strftime('%Y-%m-%d')})"
+        )
+    except Exception as e:
+        logger.error(f"Gagal muat stats: {e}, mulai dari nol.")
+
+
+_load_stats()
 
 def _track_request(model, skill, search_engine, question, success=True, error=None, response_time=0):
     _stats["total_requests"] += 1
@@ -76,7 +132,7 @@ def _track_request(model, skill, search_engine, question, success=True, error=No
             if len(_stats["skill_response_times"][skill]) > 50:
                 _stats["skill_response_times"][skill] = _stats["skill_response_times"][skill][-50:]
     # Hourly request tracking
-    hour_key = datetime.now().strftime("%H:00")
+    hour_key = datetime.now().strftime("%m-%d %H:00")
     _stats["hourly_requests"][hour_key] = _stats["hourly_requests"].get(hour_key, 0) + 1
     # Recent requests (keep last 30)
     entry = {
@@ -97,6 +153,8 @@ def _track_request(model, skill, search_engine, question, success=True, error=No
         _stats["recent_errors"].append(err_entry)
         if len(_stats["recent_errors"]) > 15:
             _stats["recent_errors"] = _stats["recent_errors"][-15:]
+    # Persist ke file
+    _save_stats()
 
 def _get_uptime():
     delta = datetime.now() - _stats["start_time"]
@@ -1053,7 +1111,7 @@ async function refresh(){
     makeDonut(d.model_usage,document.getElementById('modelChart'));
     makeDonut(d.skill_usage,document.getElementById('skillChart'));
     makeDonut(d.search_usage,document.getElementById('searchChart'));
-    makeTimeline(Object.keys(d.hourly_requests),Object.values(d.hourly_requests),document.getElementById('timelineChart'));
+    makeTimeline(Object.keys(d.hourly_requests).map(k=>k.replace(/^\d{2}-\d{2} ?/,'')),Object.values(d.hourly_requests),document.getElementById('timelineChart'));
     makeBar(Object.keys(d.model_avg_rt),Object.values(d.model_avg_rt),document.getElementById('rtChart'));
     document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+r.time+'</td><td>'+r.model+'</td><td>'+(r.skill!=='-'?'<span class="badge badge-green">'+r.skill+'</span>':'<span style="color:#475569">-</span>')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.question+'</td><td>'+r.rt+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">FAIL</span>')+'</td></tr>').join('');
     document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+r.time+'</td><td class="err" style="font-size:.8em">'+r.error+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#475569">No errors</td></tr>';
@@ -1085,9 +1143,12 @@ PORTFOLIO_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yuki — AI Assistant</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#0F172A;color:#e2e8f0;min-height:100vh;overflow-x:hidden}
+#bg3d{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-2;display:block}
+.vignette{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none;background:radial-gradient(ellipse at center,rgba(15,23,42,0) 30%,rgba(15,23,42,.65) 100%)}
 body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse at 30% 20%,rgba(129,140,248,.1) 0%,transparent 50%),radial-gradient(ellipse at 70% 80%,rgba(244,114,182,.06) 0%,transparent 50%),radial-gradient(ellipse at 50% 50%,rgba(34,211,238,.04) 0%,transparent 50%);z-index:-1}
 .glass{background:rgba(30,41,59,.5);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.3)}
 .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 24px;position:relative}
@@ -1112,7 +1173,9 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
 .tech-item:hover{transform:scale(1.05)}
 .tech-item .name{color:#fff;font-weight:600;font-size:.95em;margin-top:8px}
 .tech-item .desc{color:#64748b;font-size:.75em;margin-top:4px}
-.tech-dot{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:1.2em;font-weight:700}
+.tech-dot{position:relative;width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto}
+.tech-dot .fb{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.2em;font-weight:700}
+.tech-dot img{position:relative;z-index:1;width:26px;height:26px;border-radius:6px;object-fit:contain}
 .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
 .stat-card{text-align:center;padding:32px}
 .stat-card .val{font-size:2.2em;font-weight:800;color:#818CF8}
@@ -1120,9 +1183,12 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
 .footer{text-align:center;padding:40px 24px;color:#475569;font-size:.8em;border-top:1px solid rgba(255,255,255,.05)}
 .footer a{color:#818CF8;text-decoration:none}
 @media(max-width:768px){.features{grid-template-columns:1fr}.tech-grid{grid-template-columns:repeat(2,1fr)}.stats-row{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){#bg3d{display:none}}
 </style>
 </head>
 <body>
+<canvas id="bg3d"></canvas>
+<div class="vignette"></div>
 <section class="hero">
   <div class="hero-badge"><div class="dot"></div> Live &amp; Running</div>
   <h1>Meet <span>Yuki</span></h1>
@@ -1147,17 +1213,126 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
   <div class="section-title">Tech <span>Stack</span></div>
   <div class="section-sub">Dibangun dengan teknologi modern dan gratis</div>
   <div class="tech-grid">
-    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(129,140,248,.15);color:#818CF8">G</div><div class="name">Gemini 3.1 Flash Lite</div><div class="desc">Default AI model</div></div>
-    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(34,197,94,.15);color:#22C55E">TF</div><div class="name">TinyFish</div><div class="desc">Free web search</div></div>
-    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(244,114,182,.15);color:#F472B6">Tv</div><div class="name">Tavily</div><div class="desc">Deep search & extract</div></div>
-    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(34,211,238,.15);color:#22D3EE">OM</div><div class="name">Open-Meteo</div><div class="desc">Weather API (free)</div></div>
-    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(245,158,11,.15);color:#F59E0B">GS</div><div class="name">Google Sheets</div><div class="desc">Memory backend</div></div>
-    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(168,85,247,.15);color:#A855F7">OR</div><div class="name">OpenRouter</div><div class="desc">Vision & fallback</div></div>
-    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(239,68,68,.15);color:#EF4444">Py</div><div class="name">Python + FastAPI</div><div class="desc">Backend framework</div></div>
-    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(99,102,241,.15);color:#6366F1">N</div><div class="name">Nginx</div><div class="desc">Reverse proxy</div></div>
+    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(129,140,248,.15)"><span class="fb" style="color:#818CF8">G</span><img src="https://www.google.com/s2/favicons?domain=gemini.google.com&amp;sz=128" alt="Gemini" loading="lazy" onerror="this.remove()"></div><div class="name">Gemini 3.1 Flash Lite</div><div class="desc">Default AI model</div></div>
+    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(34,197,94,.15)"><span class="fb" style="color:#22C55E">TF</span><img src="https://www.google.com/s2/favicons?domain=tinyfish.ai&amp;sz=128" alt="TinyFish" loading="lazy" onerror="this.remove()"></div><div class="name">TinyFish</div><div class="desc">Free web search</div></div>
+    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(244,114,182,.15)"><span class="fb" style="color:#F472B6">Tv</span><img src="https://www.google.com/s2/favicons?domain=tavily.com&amp;sz=128" alt="Tavily" loading="lazy" onerror="this.remove()"></div><div class="name">Tavily</div><div class="desc">Deep search & extract</div></div>
+    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(34,211,238,.15)"><span class="fb" style="color:#22D3EE">OM</span><img src="https://www.google.com/s2/favicons?domain=open-meteo.com&amp;sz=128" alt="Open-Meteo" loading="lazy" onerror="this.remove()"></div><div class="name">Open-Meteo</div><div class="desc">Weather API (free)</div></div>
+    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(245,158,11,.15)"><span class="fb" style="color:#F59E0B">GS</span><img src="https://www.google.com/s2/favicons?domain=sheets.google.com&amp;sz=128" alt="Google Sheets" loading="lazy" onerror="this.remove()"></div><div class="name">Google Sheets</div><div class="desc">Memory backend</div></div>
+    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(168,85,247,.15)"><span class="fb" style="color:#A855F7">OR</span><img src="https://www.google.com/s2/favicons?domain=openrouter.ai&amp;sz=128" alt="OpenRouter" loading="lazy" onerror="this.remove()"></div><div class="name">OpenRouter</div><div class="desc">Vision & fallback</div></div>
+    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(239,68,68,.15)"><span class="fb" style="color:#EF4444">Py</span><img src="https://www.google.com/s2/favicons?domain=python.org&amp;sz=128" alt="Python" loading="lazy" onerror="this.remove()"></div><div class="name">Python + FastAPI</div><div class="desc">Backend framework</div></div>
+    <div class="tech-item glass"><div class="tech-dot" style="background:rgba(99,102,241,.15)"><span class="fb" style="color:#6366F1">N</span><img src="https://www.google.com/s2/favicons?domain=nginx.com&amp;sz=128" alt="Nginx" loading="lazy" onerror="this.remove()"></div><div class="name">Nginx</div><div class="desc">Reverse proxy</div></div>
   </div>
 </div>
 <div class="footer"><p>Built with &#x2661; by <a href="https://github.com/yuki71-s">Y71</a> &middot; Powered by <a href="https://github.com/yuki71-s/yuki-bot">Yuki Bot</a> &middot; 2026</p></div>
+<script>
+(function(){
+  if(!window.THREE) return;
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var canvas = document.getElementById('bg3d');
+  var renderer;
+  try{
+    renderer = new THREE.WebGLRenderer({canvas:canvas,alpha:true,antialias:true,powerPreference:'low-power'});
+  }catch(e){ canvas.style.display='none'; return; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  renderer.setSize(window.innerWidth,window.innerHeight,false);
+
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(60,window.innerWidth/window.innerHeight,1,200);
+  camera.position.z = 30;
+
+  // ── Partikel ──
+  var isMobile = window.innerWidth < 768;
+  var COUNT = isMobile ? 450 : 1100;
+  var PALETTE = [0x818CF8,0xF472B6,0x22D3EE,0xE0E7FF];
+  var posArr = new Float32Array(COUNT*3);
+  var colArr = new Float32Array(COUNT*3);
+  for(var i=0;i<COUNT;i++){
+    posArr[i*3]   = (Math.random()-0.5)*72;
+    posArr[i*3+1] = (Math.random()-0.5)*46;
+    posArr[i*3+2] = (Math.random()-0.5)*42;
+    var r = Math.random();
+    var hex = r<0.45 ? PALETTE[0] : (r<0.68 ? PALETTE[1] : (r<0.86 ? PALETTE[2] : PALETTE[3]));
+    var c = new THREE.Color(hex);
+    colArr[i*3]=c.r; colArr[i*3+1]=c.g; colArr[i*3+2]=c.b;
+  }
+  var pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position',new THREE.BufferAttribute(posArr,3));
+  pGeo.setAttribute('color',new THREE.BufferAttribute(colArr,3));
+  var pMat = new THREE.PointsMaterial({size:0.35,vertexColors:true,transparent:true,opacity:0.85,depthWrite:false,sizeAttenuation:true});
+  var particles = new THREE.Points(pGeo,pMat);
+  scene.add(particles);
+
+  // ── Objek floating wireframe ──
+  var SHAPES = [
+    {geo:new THREE.IcosahedronGeometry(2.4,0),        color:0x818CF8, x:-16, y:5,  z:-6},
+    {geo:new THREE.TorusGeometry(1.8,0.55,14,36),     color:0xF472B6, x:16,  y:-4, z:-4},
+    {geo:new THREE.OctahedronGeometry(1.9,0),         color:0x22D3EE, x:13,  y:7,  z:-9},
+    {geo:new THREE.TorusKnotGeometry(1.5,0.42,90,14), color:0xA855F7, x:-14, y:-7, z:-8},
+    {geo:new THREE.DodecahedronGeometry(1.7,0),       color:0x6366F1, x:-20, y:0,  z:-12},
+    {geo:new THREE.IcosahedronGeometry(1.2,0),        color:0xF472B6, x:20,  y:4,  z:-11}
+  ];
+  SHAPES.forEach(function(s){
+    var mat = new THREE.MeshBasicMaterial({color:s.color,wireframe:true,transparent:true,opacity:0.28});
+    var mesh = new THREE.Mesh(s.geo,mat);
+    mesh.position.set(s.x,s.y,s.z);
+    mesh.userData = {
+      by:s.y,
+      ph:Math.random()*Math.PI*2,
+      sp:0.5+Math.random()*0.7,
+      amp:1.2+Math.random()*1.6,
+      rx:(Math.random()-0.5)*0.008,
+      ry:(Math.random()-0.5)*0.01
+    };
+    scene.add(mesh);
+  });
+
+  // ── Parallax mouse/touch ──
+  var tx=0,ty=0,mx=0,my=0;
+  window.addEventListener('pointermove',function(e){
+    tx = (e.clientX/window.innerWidth-0.5)*2;
+    ty = (e.clientY/window.innerHeight-0.5)*2;
+  },{passive:true});
+
+  // ── Resize ──
+  window.addEventListener('resize',function(){
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth,window.innerHeight,false);
+  });
+
+  // ── Pause kalau tab nggak aktif ──
+  var running = true;
+  document.addEventListener('visibilitychange',function(){ running = !document.hidden; });
+
+  var clock = new THREE.Clock();
+  function animate(){
+    requestAnimationFrame(animate);
+    if(!running || document.hidden) return;
+    var t = clock.getElapsedTime();
+    particles.rotation.y += 0.00045;
+    particles.rotation.x = Math.sin(t*0.25)*0.03;
+    scene.children.forEach(function(o){
+      if(o.userData && o.userData.by !== undefined){
+        o.position.y = o.userData.by + Math.sin(t*o.userData.sp + o.userData.ph)*o.userData.amp;
+        o.rotation.x += o.userData.rx;
+        o.rotation.y += o.userData.ry;
+      }
+    });
+    mx += (tx-mx)*0.04;
+    my += (ty-my)*0.04;
+    camera.position.x = mx*4;
+    camera.position.y = -my*3;
+    camera.lookAt(0,0,0);
+    renderer.render(scene,camera);
+  }
+
+  if(reduced){
+    renderer.render(scene,camera);
+  }else{
+    animate();
+  }
+})();
+</script>
 </body></html>"""
 
 
