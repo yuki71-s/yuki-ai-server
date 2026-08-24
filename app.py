@@ -1041,7 +1041,8 @@ function makeTimeline(labels,values,el){
 }
 async function refresh(){
   try{
-    const r=await fetch('/stats');const d=await r.json();
+    const secret=window.location.pathname.split('/').pop();
+    const r=await fetch('/stats/'+secret);const d=await r.json();
     document.getElementById('uptime').textContent='Uptime: '+d.uptime;
     document.getElementById('requests').textContent=d.total_requests;
     document.getElementById('avgRt').textContent=d.overall_avg_rt+'s';
