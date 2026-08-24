@@ -1310,11 +1310,12 @@ def _admin_blocked(ip):
     b = _admin_fails.get(ip)
     if not b:
         return 0
-    left = int(b.get("blocked_until", 0) - time.time())
-    if left <= 0:
-        _admin_fails.pop(ip, None)
+    bu = b.get("blocked_until", 0)
+    if bu <= time.time():
+        if bu:
+            _admin_fails.pop(ip, None)
         return 0
-    return left
+    return int(bu - time.time())
 
 
 def _record_admin_fail(ip):
@@ -1473,15 +1474,6 @@ async def admin_logout(request: Request):
     resp.headers["Location"] = "/admin"
     resp.delete_cookie(COOKIE_NAME, path="/")
     return resp
-
-
-@app.get("/admin/_dbg")
-async def admin_dbg(request: Request):
-    return {
-        "your_ip": _client_ip(request),
-        "dict_id": id(_admin_fails),
-        "snapshot": {k: dict(v) for k, v in _admin_fails.items()},
-    }
 
 
 @app.get("/stats")
