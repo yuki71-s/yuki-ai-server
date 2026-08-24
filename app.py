@@ -1,5 +1,7 @@
 import os
 import json
+import hmac
+import hashlib
 import logging
 import asyncio
 import time
@@ -27,6 +29,9 @@ TINYFISH_API_KEY = os.getenv("TINYFISH_API_KEY", "")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 AUTH_TOKEN = os.getenv("YUKI_AUTH_TOKEN", "")
 DASHBOARD_SECRET = os.getenv("YUKI_DASHBOARD_SECRET", "")
+DEMO_MASTER_SECRET = os.getenv("YUKI_DEMO_MASTER_SECRET", "")
+OWNER_CHAT_ID = os.getenv("YUKI_OWNER_CHAT_ID", "")
+TG_BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 
 if not GEMINI_API_KEY and not OPENROUTER_API_KEY:
     raise ValueError("Minimal 1 API key harus diisi.")
@@ -939,14 +944,25 @@ async def call_openrouter(messages, model, image_url=None, video_url=None, web_s
         return None, err
 
 
-# ── Demo Chat (publik, rate-limited per IP) ─────────────────────────
+# ── Demo Chat (publik, rate-limited per IP + mode owner) ────────────
 DEMO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demo_usage.json")
-DEMO_LIMIT_PER_IP = 5      # chat per 24 jam per IP (sliding window)
-DEMO_WINDOW_HOURS = 24
-DEMO_GLOBAL_DAILY = 50     # kuota harian semua visitor gabungan
-DEMO_MAX_CHARS = 300       # batas karakter pertanyaan
+DEMO_WINDOW_HOURS = 24      # sliding window per IP (tetap)
+DEMO_MAX_CHARS = 300        # batas karakter pertanyaan
 
-_demo_usage = {"ips": {}, "global": {}}
+DEFAULT_SETTINGS = {
+    "owner_session_min": 60,   # durasi sesi owner sejak unlock
+    "key_interval_min": 60,    # interval generate + kirim kunci ke Telegram
+    "limit_per_ip": 5,         # chat per IP per window
+    "global_daily": 50,        # kuota harian semua visitor gabungan
+}
+SETTINGS_RANGES = {
+    "owner_session_min": (10, 1440),
+    "key_interval_min": (15, 1440),
+    "limit_per_ip": (1, 20),
+    "global_daily": (10, 200),
+}
+_demo_settings = dict(DEFAULT_SETTINGS)
+_demo_usage = {"ips": {}, "admins": {}, "unlock_fails": {}, "settings": {}, "global": {}}
 
 
 def _load_demo():
@@ -955,7 +971,20 @@ def _load_demo():
             with open(DEMO_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
             _demo_usage["ips"] = data.get("ips", {})
+            _demo_usage["admins"] = data.get("admins", {})
+            _demo_usage["unlock_fails"] = data.get("unlock_fails", {})
             _demo_usage["global"] = data.get("global", {})
+            st = data.get("settings", {})
+            for k in DEFAULT_SETTINGS:
+                if k in st:
+                    lo, hi = SETTINGS_RANGES[k]
+                    try:
+                        v = int(st[k])
+                    except (TypeError, ValueError):
+                        continue
+                    if lo <= v <= hi:
+                        _demo_settings[k] = v
+            logger.info(f"Pengaturan demo dimuat: {_demo_settings}")
     except Exception as e:
         logger.error(f"Gagal muat demo_usage: {e}")
 
@@ -972,7 +1001,20 @@ def _save_demo():
             if keep:
                 fresh_ips[ip] = keep
         _demo_usage["ips"] = fresh_ips
+        # Sesi owner kadaluarsa dibuang
+        _demo_usage["admins"] = {
+            ip: a for ip, a in _demo_usage["admins"].items()
+            if isinstance(a, dict) and a.get("exp", 0) > now
+        }
+        # Percobaan unlock gagal >24 jam dibuang
+        fresh_fails = {}
+        for ip, ts in _demo_usage["unlock_fails"].items():
+            keep = [t for t in ts if isinstance(t, (int, float)) and t > cutoff]
+            if keep:
+                fresh_fails[ip] = keep
+        _demo_usage["unlock_fails"] = fresh_fails
         _demo_usage["global"] = {d: c for d, c in _demo_usage["global"].items() if d >= today}
+        _demo_usage["settings"] = dict(_demo_settings)
         tmp = DEMO_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(_demo_usage, f)
@@ -1001,6 +1043,99 @@ def _demo_ip_count(ip):
 
 def _demo_global_today():
     return _demo_usage["global"].get(datetime.now().strftime("%Y-%m-%d"), 0)
+
+
+def _is_admin(ip):
+    """Kembalikan detik tersisa sesi owner, atau 0 kalau bukan/expired."""
+    a = _demo_usage["admins"].get(ip)
+    if not isinstance(a, dict):
+        return 0
+    exp = a.get("exp", 0)
+    now = time.time()
+    if exp <= now:
+        _demo_usage["admins"].pop(ip, None)
+        return 0
+    return int(exp - now)
+
+
+# ── Kunci owner rolling (HMAC slot-based) ──
+def _key_slot_now():
+    ivl = max(1, int(_demo_settings["key_interval_min"])) * 60
+    return int(time.time() // ivl)
+
+
+def _owner_key(slot):
+    if not DEMO_MASTER_SECRET:
+        return ""
+    return hmac.new(
+        DEMO_MASTER_SECRET.encode(), str(int(slot)).encode(), hashlib.sha256
+    ).hexdigest()[:12]
+
+
+def _valid_owner_keys():
+    s = _key_slot_now()
+    keys = {_owner_key(s), _owner_key(s - 1)} - {""}
+    return {k.lower() for k in keys}
+
+
+def _unlock_fail_count(ip):
+    cutoff = time.time() - DEMO_WINDOW_HOURS * 3600
+    return len([t for t in _demo_usage["unlock_fails"].get(ip, []) if t > cutoff])
+
+
+def _record_unlock_fail(ip):
+    _demo_usage["unlock_fails"].setdefault(ip, []).append(time.time())
+    _save_demo()
+
+
+_last_sent_slot = {"slot": None}
+
+
+async def _send_owner_key():
+    slot = _key_slot_now()
+    key = _owner_key(slot)
+    if not key or not OWNER_CHAT_ID or not TG_BOT_TOKEN:
+        return
+    now_wib = datetime.utcnow() + timedelta(hours=7)
+    end_wib = now_wib + timedelta(minutes=int(_demo_settings["key_interval_min"]))
+    text = (
+        "🔑 <b>Kunci Owner Yuki</b>\n"
+        f"Berlaku: {now_wib.strftime('%H:%M')}–{end_wib.strftime('%H:%M')} WIB\n"
+        f"/unlock <code>{key}</code>\n"
+        f"<i>Sesi aktif {_demo_settings['owner_session_min']} menit sejak unlock.</i>"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(
+                f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage",
+                json={"chat_id": OWNER_CHAT_ID, "text": text, "parse_mode": "HTML"},
+            )
+        if r.status_code == 200:
+            logger.info(f"Kunci owner terkirim ke Telegram (slot {slot})")
+        else:
+            logger.error(f"Gagal kirim kunci Telegram: {r.status_code} {r.text[:200]}")
+    except Exception as e:
+        logger.error(f"Exception kirim kunci Telegram: {e}")
+
+
+async def _key_sender_loop():
+    if not (DEMO_MASTER_SECRET and OWNER_CHAT_ID and TG_BOT_TOKEN):
+        logger.warning("Kunci owner nonaktif: YUKI_DEMO_MASTER_SECRET / YUKI_OWNER_CHAT_ID / BOT_TOKEN belum lengkap")
+        return
+    while True:
+        try:
+            slot = _key_slot_now()
+            if _last_sent_slot["slot"] != slot:
+                await _send_owner_key()
+                _last_sent_slot["slot"] = slot
+        except Exception as e:
+            logger.error(f"key_sender_loop error: {e}")
+        await asyncio.sleep(30)
+
+
+@app.on_event("startup")
+async def _startup_owner_key():
+    asyncio.create_task(_key_sender_loop())
 
 
 DEMO_SYSTEM_PROMPT = (
@@ -1045,29 +1180,21 @@ async def _call_gemini_demo(messages):
 @app.get("/demo/quota")
 async def demo_quota(request: Request):
     ip = _client_ip(request)
-    remaining = max(0, DEMO_LIMIT_PER_IP - _demo_ip_count(ip))
+    left = _is_admin(ip)
+    if left:
+        return {"remaining": 999, "limit": int(_demo_settings["limit_per_ip"]),
+                "owner_left_sec": left, "global_full": False}
+    remaining = max(0, int(_demo_settings["limit_per_ip"]) - _demo_ip_count(ip))
     return {
         "remaining": remaining,
-        "limit": DEMO_LIMIT_PER_IP,
-        "global_full": _demo_global_today() >= DEMO_GLOBAL_DAILY,
+        "limit": int(_demo_settings["limit_per_ip"]),
+        "global_full": _demo_global_today() >= int(_demo_settings["global_daily"]),
     }
 
 
 @app.post("/demo/chat")
 async def demo_chat(request: Request):
     ip = _client_ip(request)
-    # Limit pribadi per IP (sliding window 24 jam)
-    if _demo_ip_count(ip) >= DEMO_LIMIT_PER_IP:
-        return JSONResponse(status_code=429, content={
-            "error": "ip_limit",
-            "message": "Demo selesai! Tertarik punya AI assistant seperti ini? Hubungi saya lewat GitHub ya.",
-        })
-    # Kuota harian global semua visitor
-    if _demo_global_today() >= DEMO_GLOBAL_DAILY:
-        return JSONResponse(status_code=429, content={
-            "error": "global_limit",
-            "message": "Demo sedang penuh hari ini, coba lagi besok ya 🙏",
-        })
     try:
         body = await request.body()
         data = json.loads(body)
@@ -1079,6 +1206,52 @@ async def demo_chat(request: Request):
         return JSONResponse(status_code=400, content={"error": "empty"})
     if len(question) > DEMO_MAX_CHARS:
         return JSONResponse(status_code=400, content={"error": "too_long", "max": DEMO_MAX_CHARS})
+
+    limit_per_ip = int(_demo_settings["limit_per_ip"])
+    global_daily = int(_demo_settings["global_daily"])
+    owner_left = _is_admin(ip)
+
+    def _visitor_remaining():
+        return max(0, limit_per_ip - _demo_ip_count(ip))
+
+    # ── Perintah owner (tidak diteruskan ke AI) ──
+    qlow = question.lower()
+    if qlow.startswith("/lock"):
+        if owner_left:
+            _demo_usage["admins"].pop(ip, None)
+            _save_demo()
+            return {"reply": "Mode owner dimatikan 🔄 sampai jumpa di unlock berikutnya!", "remaining": _visitor_remaining()}
+        return {"reply": "Kamu memang belum mode owner 😄", "remaining": _visitor_remaining()}
+    if qlow.startswith("/unlock"):
+        parts = question.split()
+        key = parts[1].strip().lower() if len(parts) > 1 else ""
+        if _unlock_fail_count(ip) >= 5:
+            return JSONResponse(status_code=429, content={
+                "error": "ip_limit",
+                "message": "Percobaan unlock terlalu banyak. Coba lagi besok ya 🔒",
+            })
+        if key and key in _valid_owner_keys():
+            exp = time.time() + int(_demo_settings["owner_session_min"]) * 60
+            _demo_usage["admins"][ip] = {"exp": exp}
+            _save_demo()
+            mins = int(_demo_settings["owner_session_min"])
+            return {"reply": f"♾️ Mode owner aktif! Bebas chat selama {mins} menit.", "remaining": 999, "owner_left_sec": int(exp - time.time())}
+        _record_unlock_fail(ip)
+        sisa = 5 - _unlock_fail_count(ip)
+        return {"reply": f"Kunci salah 😅 (sisa percobaan: {sisa})", "remaining": _visitor_remaining()}
+
+    # ── Limit (skip kalau owner) ──
+    if not owner_left:
+        if _demo_ip_count(ip) >= limit_per_ip:
+            return JSONResponse(status_code=429, content={
+                "error": "ip_limit",
+                "message": "Demo selesai! Tertarik punya AI assistant seperti ini? Hubungi saya lewat GitHub ya.",
+            })
+        if _demo_global_today() >= global_daily:
+            return JSONResponse(status_code=429, content={
+                "error": "global_limit",
+                "message": "Demo sedang penuh hari ini, coba lagi besok ya 🙏",
+            })
 
     messages = [
         {"role": m.get("role", "user"), "content": str(m.get("content", ""))[:500]}
@@ -1094,13 +1267,17 @@ async def demo_chat(request: Request):
             "error": "ai_error",
             "message": "Waduh, otakku lagi error 😅 coba lagi bentar ya.",
         })
-    # Kuota dipotong HANYA jika AI berhasil menjawab
-    _demo_usage["ips"].setdefault(ip, []).append(time.time())
-    today = datetime.now().strftime("%Y-%m-%d")
-    _demo_usage["global"][today] = _demo_usage["global"].get(today, 0) + 1
-    _save_demo()
-    remaining = max(0, DEMO_LIMIT_PER_IP - _demo_ip_count(ip))
-    return {"reply": reply.strip(), "remaining": remaining}
+    # Kuota dipotong HANYA jika AI berhasil menjawab & bukan owner
+    if not owner_left:
+        _demo_usage["ips"].setdefault(ip, []).append(time.time())
+        today = datetime.now().strftime("%Y-%m-%d")
+        _demo_usage["global"][today] = _demo_usage["global"].get(today, 0) + 1
+        _save_demo()
+    remaining = 999 if owner_left else _visitor_remaining()
+    resp = {"reply": reply.strip(), "remaining": remaining}
+    if owner_left:
+        resp["owner_left_sec"] = _is_admin(ip)
+    return resp
 
 
 # ── Health ───────────────────────────────────────────────────────────
@@ -1598,7 +1775,37 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
   var send=document.getElementById('chatSend');
   var foot=document.getElementById('chatFoot');
   var chip=document.getElementById('quotaChip');
-  var history=[],remaining=null,pending=false,locked=false;
+  var history=[],remaining=null,pending=false,locked=false,ownerExp=0;
+
+  function fmtOwner(){
+    var s=Math.max(0,Math.floor((ownerExp-Date.now())/1000));
+    if(s>=3600){var h=Math.floor(s/3600),m=Math.ceil((s%3600)/60);return '♾️ mode owner · '+h+'j '+m+'m';}
+    return '♾️ mode owner · '+Math.ceil(s/60)+'m';
+  }
+  function updateChip(){
+    if(remaining===null){chip.textContent='';return;}
+    if(remaining>=999){chip.textContent=fmtOwner();chip.className='quota';return;}
+    chip.textContent=remaining+' / 5 pesan';
+    chip.className='quota'+(remaining<=1?' low':'');
+  }
+  function fetchQuota(){
+    return fetch('/demo/quota').then(function(r){return r.json();}).then(function(q){
+      remaining=q.remaining;
+      if(q.owner_left_sec)ownerExp=Date.now()+q.owner_left_sec*1000;
+      updateChip();
+      if(!locked){
+        if(q.global_full)lockGlobal();
+        else if(remaining<=0&&remaining<999)lockIP();
+      }
+    }).catch(function(){});
+  }
+  setInterval(function(){
+    if(remaining!==null&&remaining>=999){
+      if(Date.now()>=ownerExp){fetchQuota();}
+      else{updateChip();}
+    }
+  },20000);
+  fetchQuota();
 
   function addMsg(text,who){
     var d=document.createElement('div');
@@ -1633,14 +1840,7 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
     foot.innerHTML='<div class="done-card"><div class="big">Demo penuh hari ini 🙏</div><small>Kuota demo gratis hari ini sudah habis.<br>Datang lagi besok ya, atau mampir ke GitHub-ku!</small><a href="https://github.com/yuki71-s" target="_blank" rel="noopener">'+ghBtnSvg()+'GitHub</a></div>';
   }
 
-  addMsg('Halo sayang! Aku Yuki \u2728 sini ngobrol santai aja.','yuki');
-
-  fetch('/demo/quota').then(function(r){return r.json();}).then(function(q){
-    remaining=q.remaining;
-    updateChip();
-    if(q.global_full) lockGlobal();
-    else if(remaining<=0) lockIP();
-  }).catch(function(){chip.textContent='';});
+  addMsg('Halo sayang! Aku Yuki ✨ sini ngobrol santai aja.','yuki');
 
   form.addEventListener('submit',function(e){
     e.preventDefault();
@@ -1658,6 +1858,7 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
       if(res.ok){
         addMsg(res.d.reply,'yuki');
         remaining=res.d.remaining;
+        if(res.d.owner_left_sec)ownerExp=Date.now()+res.d.owner_left_sec*1000;
         updateChip();
         history.push({role:'user',content:q},{role:'assistant',content:res.d.reply});
         history=history.slice(-6);
