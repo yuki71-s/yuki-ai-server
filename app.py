@@ -37,6 +37,9 @@ _stats = {
     "model_usage": {},
     "search_usage": {},
     "skill_usage": {},
+    "model_response_times": {},
+    "skill_response_times": {},
+    "hourly_requests": {},
     "recent_errors": [],
     "recent_requests": [],
 }
@@ -56,25 +59,42 @@ def _track_request(model, skill, search_engine, question, success=True, error=No
     # Search usage
     if search_engine:
         _stats["search_usage"][search_engine] = _stats["search_usage"].get(search_engine, 0) + 1
-    # Recent requests (keep last 20)
+    # Response time tracking
+    if response_time and response_time > 0:
+        rt_key = model or "default"
+        if rt_key not in _stats["model_response_times"]:
+            _stats["model_response_times"][rt_key] = []
+        _stats["model_response_times"][rt_key].append(round(response_time, 2))
+        if len(_stats["model_response_times"][rt_key]) > 50:
+            _stats["model_response_times"][rt_key] = _stats["model_response_times"][rt_key][-50:]
+        if skill:
+            if skill not in _stats["skill_response_times"]:
+                _stats["skill_response_times"][skill] = []
+            _stats["skill_response_times"][skill].append(round(response_time, 2))
+            if len(_stats["skill_response_times"][skill]) > 50:
+                _stats["skill_response_times"][skill] = _stats["skill_response_times"][skill][-50:]
+    # Hourly request tracking
+    hour_key = datetime.now().strftime("%H:00")
+    _stats["hourly_requests"][hour_key] = _stats["hourly_requests"].get(hour_key, 0) + 1
+    # Recent requests (keep last 30)
     entry = {
         "time": datetime.now().strftime("%H:%M:%S"),
         "model": model or "default",
         "skill": skill or "-",
         "search": search_engine or "-",
-        "question": question[:40],
+        "question": question[:50],
         "ok": success,
         "rt": f"{response_time:.1f}s" if response_time else "-",
     }
     _stats["recent_requests"].append(entry)
-    if len(_stats["recent_requests"]) > 20:
-        _stats["recent_requests"] = _stats["recent_requests"][-20:]
-    # Recent errors (keep last 10)
+    if len(_stats["recent_requests"]) > 30:
+        _stats["recent_requests"] = _stats["recent_requests"][-30:]
+    # Recent errors (keep last 15)
     if error:
-        err_entry = {"time": datetime.now().strftime("%H:%M:%S"), "error": str(error)[:100]}
+        err_entry = {"time": datetime.now().strftime("%H:%M:%S"), "error": str(error)[:120]}
         _stats["recent_errors"].append(err_entry)
-        if len(_stats["recent_errors"]) > 10:
-            _stats["recent_errors"] = _stats["recent_errors"][-10:]
+        if len(_stats["recent_errors"]) > 15:
+            _stats["recent_errors"] = _stats["recent_errors"][-15:]
 
 def _get_uptime():
     delta = datetime.now() - _stats["start_time"]
@@ -877,16 +897,35 @@ async def health():
 
 @app.get("/stats")
 async def stats():
+    # Compute average response times
+    model_avg = {}
+    for m, times in _stats["model_response_times"].items():
+        model_avg[m] = round(sum(times) / len(times), 2) if times else 0
+    skill_avg = {}
+    for s, times in _stats["skill_response_times"].items():
+        skill_avg[s] = round(sum(times) / len(times), 2) if times else 0
+    overall_avg = 0
+    all_times = []
+    for times in _stats["model_response_times"].values():
+        all_times.extend(times)
+    if all_times:
+        overall_avg = round(sum(all_times) / len(all_times), 2)
+    # Sorted hourly requests (last 12 hours)
+    sorted_hours = dict(sorted(_stats["hourly_requests"].items())[-12:])
     return {
         "status": "ok",
         "uptime": _get_uptime(),
         "total_requests": _stats["total_requests"],
         "total_errors": _stats["total_errors"],
+        "overall_avg_rt": overall_avg,
         "model_usage": _stats["model_usage"],
+        "model_avg_rt": model_avg,
         "search_usage": _stats["search_usage"],
         "skill_usage": _stats["skill_usage"],
-        "recent_requests": _stats["recent_requests"],
-        "recent_errors": _stats["recent_errors"],
+        "skill_avg_rt": skill_avg,
+        "hourly_requests": sorted_hours,
+        "recent_requests": list(reversed(_stats["recent_requests"])),
+        "recent_errors": list(reversed(_stats["recent_errors"])),
     }
 
 
@@ -901,67 +940,117 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yuki Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f0f1a;color:#e0e0e0;min-height:100vh}
-.header{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:20px 30px;border-bottom:2px solid #e94560}
-.header h1{font-size:1.8em;color:#fff}.header span{color:#e94560}
-.container{max-width:1200px;margin:0 auto;padding:20px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin:16px 0}
-.card{background:#1a1a2e;border-radius:12px;padding:20px;border:1px solid #2a2a4a}
-.card h3{color:#e94560;margin-bottom:12px;font-size:1em;text-transform:uppercase;letter-spacing:1px}
-.stat-val{font-size:2.2em;font-weight:700;color:#fff}
-.stat-label{color:#888;font-size:.85em;margin-top:4px}
-.status-online{color:#00e676}.status-offline{color:#ff5252}
-.bar-chart{display:flex;flex-direction:column;gap:8px}
-.bar-row{display:flex;align-items:center;gap:8px}
-.bar-label{width:120px;font-size:.85em;color:#aaa;text-align:right}
-.bar-track{flex:1;height:22px;background:#2a2a4a;border-radius:4px;overflow:hidden}
-.bar-fill{height:100%;border-radius:4px;transition:width .5s}
-.bar-count{width:40px;font-size:.85em;color:#ccc}
-.colors{--c1:#e94560;--c2:#0f3460;--c3:#533483;--c4:#e94560;--c5:#00e676}
-table{width:100%;border-collapse:collapse;font-size:.85em}
-th{text-align:left;color:#888;padding:8px 6px;border-bottom:1px solid #2a2a4a}
-td{padding:8px 6px;border-bottom:1px solid #1a1a2e}
-.ok{color:#00e676}.err{color:#ff5252}
-.refresh{color:#666;font-size:.8em;text-align:center;padding:10px}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#0F172A;color:#e2e8f0;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 20% 50%,rgba(129,140,248,.08) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(244,114,182,.06) 0%,transparent 50%),radial-gradient(ellipse at 50% 80%,rgba(34,211,238,.05) 0%,transparent 50%);animation:bgPulse 20s ease-in-out infinite;z-index:-1}
+@keyframes bgPulse{0%,100%{transform:translate(0,0)}50%{transform:translate(-2%,-1%)}}
+.glass{background:rgba(30,41,59,.6);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.header{background:rgba(15,23,42,.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:20px 30px;border-bottom:1px solid rgba(129,140,248,.2);position:sticky;top:0;z-index:100}
+.header-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:1.6em;font-weight:700;color:#fff;letter-spacing:-.5px}
+.header h1 span{color:#818CF8}
+.header-right{display:flex;align-items:center;gap:16px}
+.dot{width:10px;height:10px;border-radius:50%;background:#22C55E;box-shadow:0 0 8px #22C55E;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.container{max-width:1400px;margin:0 auto;padding:24px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.grid1{margin-bottom:16px}
+.card{padding:24px;transition:transform .2s,box-shadow .2s}
+.card:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,0,0,.4)}
+.card h3{color:#818CF8;margin-bottom:16px;font-size:.8em;text-transform:uppercase;letter-spacing:1.5px;font-weight:600}
+.stat-val{font-size:2.4em;font-weight:800;color:#fff;line-height:1.1}
+.stat-val.accent{color:#818CF8}
+.stat-val.success{color:#22C55E}
+.stat-val.danger{color:#EF4444}
+.stat-val.warning{color:#F59E0B}
+.stat-label{color:#64748b;font-size:.8em;margin-top:6px;font-weight:500}
+.chart-container{position:relative;height:220px}
+.chart-container.tall{height:280px}
+table{width:100%;border-collapse:collapse;font-size:.82em}
+th{text-align:left;color:#64748b;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06);font-weight:600;text-transform:uppercase;font-size:.75em;letter-spacing:.5px}
+td{padding:10px;border-bottom:1px solid rgba(255,255,255,.03)}
+tr:hover{background:rgba(255,255,255,.02)}
+.ok{color:#22C55E;font-weight:600}.err{color:#EF4444;font-weight:600}
+.refresh{color:#475569;font-size:.75em;text-align:center;padding:16px;letter-spacing:1px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.75em;font-weight:600}
+.badge-green{background:rgba(34,197,94,.15);color:#22C55E}
+@media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
+@media(max-width:500px){.grid4{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<div class="header"><h1><span>Yuki</span> Dashboard</h1></div>
+<div class="header"><div class="header-inner">
+  <h1><span>&#x2661;</span> Yuki Dashboard</h1>
+  <div class="header-right"><div class="dot"></div><span style="color:#64748b;font-size:.85em" id="uptime">-</span></div>
+</div></div>
 <div class="container">
-<div class="grid">
-  <div class="card"><h3>Status</h3><div id="status" class="stat-val status-online">ONLINE</div><div class="stat-label" id="uptime">-</div></div>
-  <div class="card"><h3>Total Requests</h3><div class="stat-val" id="requests">-</div><div class="stat-label">sejak server start</div></div>
-  <div class="card"><h3>Errors</h3><div class="stat-val" id="errors">-</div><div class="stat-label">total errors</div></div>
+<div class="grid4">
+  <div class="card glass"><h3>Status</h3><div class="stat-val success" id="status">ONLINE</div><div class="stat-label">server status</div></div>
+  <div class="card glass"><h3>Total Requests</h3><div class="stat-val accent" id="requests">-</div><div class="stat-label">since server start</div></div>
+  <div class="card glass"><h3>Avg Response</h3><div class="stat-val warning" id="avgRt">-</div><div class="stat-label">seconds per request</div></div>
+  <div class="card glass"><h3>Errors</h3><div class="stat-val" id="errors">-</div><div class="stat-label" id="errorRate">-</div></div>
 </div>
-<div class="grid" style="grid-template-columns:1fr 1fr">
-  <div class="card"><h3>Model Usage</h3><div class="bar-chart" id="models">-</div></div>
-  <div class="card"><h3>Search Usage</h3><div class="bar-chart" id="searches">-</div></div>
+<div class="grid3">
+  <div class="card glass"><h3>Model Usage</h3><div class="chart-container"><canvas id="modelChart"></canvas></div></div>
+  <div class="card glass"><h3>Skill Usage</h3><div class="chart-container"><canvas id="skillChart"></canvas></div></div>
+  <div class="card glass"><h3>Search Usage</h3><div class="chart-container"><canvas id="searchChart"></canvas></div></div>
 </div>
-<div class="card" style="margin:16px 0"><h3>Skill Usage</h3><div class="bar-chart" id="skills">-</div></div>
-<div class="card" style="margin:16px 0"><h3>Recent Requests</h3><table><thead><tr><th>Time</th><th>Model</th><th>Skill</th><th>Search</th><th>Question</th><th>RT</th><th>OK</th></tr></thead><tbody id="reqTable"></tbody></table></div>
-<div class="card" style="margin:16px 0"><h3>Recent Errors</h3><table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody id="errTable"></tbody></table></div>
-<div class="refresh">Auto-refresh: 10s</div>
+<div class="grid2">
+  <div class="card glass"><h3>Requests (Last 12h)</h3><div class="chart-container tall"><canvas id="timelineChart"></canvas></div></div>
+  <div class="card glass"><h3>Avg Response Time by Model</h3><div class="chart-container tall"><canvas id="rtChart"></canvas></div></div>
+</div>
+<div class="grid1"><div class="card glass">
+  <h3>Recent Requests</h3>
+  <div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Model</th><th>Skill</th><th>Question</th><th>RT</th><th>Status</th></tr></thead><tbody id="reqTable"></tbody></table></div>
+</div></div>
+<div class="grid1"><div class="card glass">
+  <h3>Recent Errors</h3>
+  <div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody id="errTable"></tbody></table></div>
+</div></div>
+<div class="refresh">AUTO-REFRESH 10s &middot; yuki-ai.tech</div>
 </div>
 <script>
-const colors=['#e94560','#0f3460','#533483','#00e676','#ff9800','#2196f3'];
-function bars(data,el){
-  const mx=Math.max(...Object.values(data),1);
-  el.innerHTML=Object.entries(data).map(([k,v],i)=>`<div class="bar-row"><div class="bar-label">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${v/mx*100}%;background:${colors[i%colors.length]}"></div></div><div class="bar-count">${v}</div></div>`).join('')||'<div style="color:#666">No data</div>';
+const palette=['#818CF8','#22C55E','#F472B6','#F59E0B','#22D3EE','#A855F7','#EF4444','#6366F1'];
+const chartDefaults={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#94a3b8',font:{size:11},padding:12,usePointStyle:true,pointStyleWidth:8}}}};
+function makeDonut(data,el){
+  const labels=Object.keys(data);const values=Object.values(data);
+  if(!labels.length){el.innerHTML='<div style="color:#475569;text-align:center;padding:40px">No data yet</div>';return;}
+  const bg=labels.map((_,i)=>palette[i%palette.length]);
+  const cfg={type:'doughnut',data:{labels,datasets:[{data:values,backgroundColor:bg,borderColor:'rgba(15,23,42,.8)',borderWidth:3,hoverOffset:8}]},options:{...chartDefaults,cutout:'65%',plugins:{...chartDefaults.plugins,tooltip:{backgroundColor:'rgba(30,41,59,.95)',titleColor:'#e2e8f0',bodyColor:'#94a3b8',borderColor:'rgba(129,140,248,.3)',borderWidth:1,cornerRadius:8,padding:12}}}};
+  if(el._chart)el._chart.destroy();el._chart=new Chart(el,cfg);
+}
+function makeBar(labels,values,el){
+  if(!labels.length){el.innerHTML='<div style="color:#475569;text-align:center;padding:40px">No data yet</div>';return;}
+  const cfg={type:'bar',data:{labels,datasets:[{label:'Avg RT (s)',data:values,backgroundColor:palette.map(c=>c+'99'),borderColor:palette,borderWidth:2,borderRadius:6}]},options:{...chartDefaults,indexAxis:'y',plugins:{...chartDefaults.plugins,legend:{display:false}},scales:{x:{ticks:{color:'#94a3b8'},grid:{color:'rgba(148,163,184,.06)'}},y:{ticks:{color:'#cbd5e1'},grid:{display:false}}}}};
+  if(el._chart)el._chart.destroy();el._chart=new Chart(el,cfg);
+}
+function makeTimeline(labels,values,el){
+  if(!labels.length){el.innerHTML='<div style="color:#475569;text-align:center;padding:40px">No data yet</div>';return;}
+  const cfg={type:'line',data:{labels,datasets:[{label:'Requests',data:values,borderColor:'#818CF8',backgroundColor:'rgba(129,140,248,.1)',fill:true,tension:.4,borderWidth:2,pointRadius:3,pointBackgroundColor:'#818CF8'}]},options:{...chartDefaults,plugins:{...chartDefaults.plugins,legend:{display:false}},scales:{x:{ticks:{color:'#94a3b8',maxRotation:0},grid:{color:'rgba(148,163,184,.06)'}},y:{ticks:{color:'#94a3b8',stepSize:1},grid:{color:'rgba(148,163,184,.06)'},beginAtZero:true}}}};
+  if(el._chart)el._chart.destroy();el._chart=new Chart(el,cfg);
 }
 async function refresh(){
-  try{const r=await fetch('/stats');const d=await r.json();
-  document.getElementById('uptime').textContent='Uptime: '+d.uptime;
-  document.getElementById('requests').textContent=d.total_requests;
-  document.getElementById('errors').textContent=d.total_errors;
-  document.getElementById('errors').className='stat-val '+(d.total_errors>0?'err':'');
-  bars(d.model_usage,document.getElementById('models'));
-  bars(d.search_usage,document.getElementById('searches'));
-  bars(d.skill_usage,document.getElementById('skills'));
-  document.getElementById('reqTable').innerHTML=d.recent_requests.reverse().map(r=>`<tr><td>${r.time}</td><td>${r.model}</td><td>${r.skill}</td><td>${r.search}</td><td>${r.question}</td><td>${r.rt}</td><td class="${r.ok?'ok':'err'}">${r.ok?'OK':'FAIL'}</td></tr>`).join('');
-  document.getElementById('errTable').innerHTML=d.recent_errors.reverse().map(r=>`<tr><td>${r.time}</td><td class="err">${r.error}</td></tr>`).join('')||'<tr><td colspan="2" style="color:#666">No errors</td></tr>';
-  }catch(e){document.getElementById('status').textContent='OFFLINE';document.getElementById('status').className='stat-val status-offline';}
+  try{
+    const r=await fetch('/stats');const d=await r.json();
+    document.getElementById('uptime').textContent='Uptime: '+d.uptime;
+    document.getElementById('requests').textContent=d.total_requests;
+    document.getElementById('avgRt').textContent=d.overall_avg_rt+'s';
+    document.getElementById('errors').textContent=d.total_errors;
+    document.getElementById('errors').className='stat-val '+(d.total_errors>0?'danger':'success');
+    const rate=d.total_requests>0?((d.total_errors/d.total_requests)*100).toFixed(1)+'% error rate':'0%';
+    document.getElementById('errorRate').textContent=rate;
+    makeDonut(d.model_usage,document.getElementById('modelChart'));
+    makeDonut(d.skill_usage,document.getElementById('skillChart'));
+    makeDonut(d.search_usage,document.getElementById('searchChart'));
+    makeTimeline(Object.keys(d.hourly_requests),Object.values(d.hourly_requests),document.getElementById('timelineChart'));
+    makeBar(Object.keys(d.model_avg_rt),Object.values(d.model_avg_rt),document.getElementById('rtChart'));
+    document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+r.time+'</td><td>'+r.model+'</td><td>'+(r.skill!=='-'?'<span class="badge badge-green">'+r.skill+'</span>':'<span style="color:#475569">-</span>')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.question+'</td><td>'+r.rt+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">FAIL</span>')+'</td></tr>').join('');
+    document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+r.time+'</td><td class="err" style="font-size:.8em">'+r.error+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#475569">No errors</td></tr>';
+  }catch(e){document.getElementById('status').textContent='OFFLINE';document.getElementById('status').className='stat-val danger';}
 }
 refresh();setInterval(refresh,10000);
 </script>
