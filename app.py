@@ -1434,16 +1434,36 @@ tr:hover{background:rgba(255,255,255,.02)}
 .refresh{color:#475569;font-size:.75em;text-align:center;padding:16px;letter-spacing:1px}
 .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.75em;font-weight:600}
 .badge-green{background:rgba(34,197,94,.15);color:#22C55E}
-@media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
-@media(max-width:500px){.grid4{grid-template-columns:1fr}}
+.layout{display:flex;min-height:100vh}
+.side{width:232px;flex-shrink:0;background:rgba(10,15,32,.75);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-right:1px solid rgba(129,140,248,.15);padding:26px 16px;display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:12px;padding:0 6px}
+.brand .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#6366F1,#A855F7);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.25em;color:#fff;flex-shrink:0}
+.brand h2{margin:0;font-size:1.05em;color:#fff;letter-spacing:.08em}
+.brand span{font-size:.62em;color:#64748b;letter-spacing:.22em;font-weight:600;display:block;margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:6px}
+.nav-item{display:flex;align-items:center;gap:11px;width:100%;background:transparent;border:none;color:#94a3b8;padding:12px 14px;border-radius:11px;font-family:inherit;font-size:.93em;font-weight:500;text-align:left;cursor:pointer;transition:background .15s,color .15s}
+.nav-item:hover{background:rgba(255,255,255,.05);color:#e2e8f0}
+.nav-item.active{background:linear-gradient(135deg,rgba(99,102,241,.28),rgba(168,85,247,.28));color:#c7d2fe}
+.side-foot{margin-top:auto;padding:0 6px;color:#64748b;font-size:.78em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.content{flex:1;padding:26px 30px;max-width:1280px;margin:0 auto;width:100%;min-width:0}
+.tab{display:none}.tab.active{display:block}
+@media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.layout{flex-direction:column}.side{position:static;width:100%;height:auto;flex-direction:row;align-items:center;padding:12px 18px;gap:14px;border-right:none;border-bottom:1px solid rgba(129,140,248,.15)}.brand>div:last-child span{display:none}.nav{flex-direction:row;flex:1}.nav-item{width:auto;padding:9px 14px}.side-foot{margin:0}}
+@media(max-width:500px){.grid4{grid-template-columns:1fr}.content{padding:16px 12px}}
 </style>
 </head>
 <body>
-<div class="header"><div class="header-inner">
-  <h1><span>&#x2661;</span> Yuki Dashboard</h1>
-  <div class="header-right"><div class="dot"></div><span style="color:#64748b;font-size:.85em" id="uptime">-</span></div>
-</div></div>
-<div class="container">
+<div class="layout">
+<aside class="side">
+  <div class="brand"><div class="logo">&#x2661;</div><div><h2>YUKI</h2><span>ADMIN PANEL</span></div></div>
+  <nav class="nav">
+    <button class="nav-item active" data-tab="stats">&#128202; <span>Statistik</span></button>
+    <button class="nav-item" data-tab="demo">&#9881;&#65039; <span>Demo Chat</span></button>
+  </nav>
+  <div class="side-foot"><span class="dot" style="display:inline-block"></span><span id="uptime">-</span></div>
+</aside>
+<main class="content">
+
+<section id="tab-stats" class="tab active">
 <div class="grid4">
   <div class="card glass"><h3>Status</h3><div class="stat-val success" id="status">ONLINE</div><div class="stat-label">server status</div></div>
   <div class="card glass"><h3>Total Requests</h3><div class="stat-val accent" id="requests">-</div><div class="stat-label">since server start</div></div>
@@ -1467,6 +1487,9 @@ tr:hover{background:rgba(255,255,255,.02)}
   <h3>Recent Errors</h3>
   <div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody id="errTable"></tbody></table></div>
 </div></div>
+</section>
+
+<section id="tab-demo" class="tab">
 <style>
 .set-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px}
 .set-field{display:flex;flex-direction:column;gap:6px}
@@ -1499,7 +1522,10 @@ tr:hover{background:rgba(255,255,255,.02)}
   </div>
   <div class="set-info">&#128273; Kunci slot saat ini: <code id="keyPreview">-</code> &middot; Sesi owner aktif: <span id="ownerActiveInfo">-</span></div>
 </div></div>
+</section>
+
 <div class="refresh">AUTO-REFRESH 10s &middot; yuki-ai.tech</div>
+</main>
 </div>
 <script>
 const palette=['#818CF8','#22C55E','#F472B6','#F59E0B','#22D3EE','#A855F7','#EF4444','#6366F1'];
@@ -1521,25 +1547,36 @@ function makeTimeline(labels,values,el){
   const cfg={type:'line',data:{labels,datasets:[{label:'Requests',data:values,borderColor:'#818CF8',backgroundColor:'rgba(129,140,248,.1)',fill:true,tension:.4,borderWidth:2,pointRadius:3,pointBackgroundColor:'#818CF8'}]},options:{...chartDefaults,plugins:{...chartDefaults.plugins,legend:{display:false}},scales:{x:{ticks:{color:'#94a3b8',maxRotation:0},grid:{color:'rgba(148,163,184,.06)'}},y:{ticks:{color:'#94a3b8',stepSize:1},grid:{color:'rgba(148,163,184,.06)'},beginAtZero:true}}}};
   if(el._chart)el._chart.destroy();el._chart=new Chart(el,cfg);
 }
-async function refresh(){
-  try{
-    const secret=window.location.pathname.split('/').pop();
-    const r=await fetch('/stats/'+secret);const d=await r.json();
-    document.getElementById('uptime').textContent='Uptime: '+d.uptime;
-    document.getElementById('requests').textContent=d.total_requests;
-    document.getElementById('avgRt').textContent=d.overall_avg_rt+'s';
-    document.getElementById('errors').textContent=d.total_errors;
-    document.getElementById('errors').className='stat-val '+(d.total_errors>0?'danger':'success');
-    const rate=d.total_requests>0?((d.total_errors/d.total_requests)*100).toFixed(1)+'% error rate':'0%';
-    document.getElementById('errorRate').textContent=rate;
+let lastData=null;
+function renderStats(d){
+  document.getElementById('uptime').textContent='Uptime: '+d.uptime;
+  document.getElementById('requests').textContent=d.total_requests;
+  document.getElementById('avgRt').textContent=d.overall_avg_rt+'s';
+  document.getElementById('errors').textContent=d.total_errors;
+  document.getElementById('errors').className='stat-val '+(d.total_errors>0?'danger':'success');
+  const rate=d.total_requests>0?((d.total_errors/d.total_requests)*100).toFixed(1)+'% error rate':'0%';
+  document.getElementById('errorRate').textContent=rate;
+  if(document.getElementById('tab-stats').classList.contains('active')){
     makeDonut(d.model_usage,document.getElementById('modelChart'));
     makeDonut(d.skill_usage,document.getElementById('skillChart'));
     makeDonut(d.search_usage,document.getElementById('searchChart'));
     makeTimeline(Object.keys(d.hourly_requests).map(k=>k.length>5?k.slice(6):k),Object.values(d.hourly_requests),document.getElementById('timelineChart'));
     makeBar(Object.keys(d.model_avg_rt),Object.values(d.model_avg_rt),document.getElementById('rtChart'));
-    document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+r.time+'</td><td>'+r.model+'</td><td>'+(r.skill!=='-'?'<span class="badge badge-green">'+r.skill+'</span>':'<span style="color:#475569">-</span>')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.question+'</td><td>'+r.rt+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">FAIL</span>')+'</td></tr>').join('');
-    document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+r.time+'</td><td class="err" style="font-size:.8em">'+r.error+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#475569">No errors</td></tr>';
+  }
+  document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+r.time+'</td><td>'+r.model+'</td><td>'+(r.skill!=='-'?'<span class="badge badge-green">'+r.skill+'</span>':'<span style="color:#475569">-</span>')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.question+'</td><td>'+r.rt+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">FAIL</span>')+'</td></tr>').join('');
+  document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+r.time+'</td><td class="err" style="font-size:.8em">'+r.error+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#475569">No errors</td></tr>';
+}
+async function refresh(){
+  try{
+    const r=await fetch('/stats/'+dashSecret());const d=await r.json();
+    lastData=d;renderStats(d);
+    document.getElementById('status').textContent='ONLINE';document.getElementById('status').className='stat-val success';
   }catch(e){document.getElementById('status').textContent='OFFLINE';document.getElementById('status').className='stat-val danger';}
+}
+function switchTab(name){
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+  document.querySelectorAll('.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+name));
+  if(name==='stats'&&lastData)renderStats(lastData);
 }
 const SET_FIELDS=[['owner_session_min','setOwnerSession'],['key_interval_min','setKeyInterval'],['limit_per_ip','setLimitIp'],['global_daily','setGlobalDaily']];
 const SET_RANGES={owner_session_min:[10,1440],key_interval_min:[15,1440],limit_per_ip:[1,20],global_daily:[10,200]};
@@ -1573,6 +1610,7 @@ document.getElementById('saveSetBtn').addEventListener('click',async()=>{
   }catch(e){st.textContent='Gagal terhubung ke server';st.className='err';}
   btn.disabled=false;
 });
+document.querySelectorAll('.nav-item').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
 loadSettings();
 refresh();setInterval(refresh,10000);
 </script>
