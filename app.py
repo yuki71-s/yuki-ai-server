@@ -398,14 +398,14 @@ async def get_city_coords(city_name: str) -> dict:
     try:
         url = "https://geocoding-api.open-meteo.com/v1/search"
         params = {"name": city_name, "count": 1, "language": "id"}
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=8)) as resp:
-                data = await resp.json()
-                results = data.get("results", [])
-                if results:
-                    r = results[0]
-                    return {"lat": r["latitude"], "lon": r["longitude"], "name": r.get("name", city_name), "country": r.get("country", "")}
-                return {}
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(url, params=params)
+            data = resp.json()
+            results = data.get("results", [])
+            if results:
+                r = results[0]
+                return {"lat": r["latitude"], "lon": r["longitude"], "name": r.get("name", city_name), "country": r.get("country", "")}
+            return {}
     except Exception as e:
         logger.error(f"Geocoding error: {e}")
         return {}
@@ -428,9 +428,9 @@ async def get_weather(city_name: str) -> dict:
             "timezone": "Asia/Jakarta",
             "forecast_days": 2,
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=8)) as resp:
-                data = await resp.json()
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(url, params=params)
+            data = resp.json()
 
         current = data.get("current", {})
         daily = data.get("daily", {})
