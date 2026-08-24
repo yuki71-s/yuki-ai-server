@@ -23,6 +23,14 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    resp = await call_next(request)
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    return resp
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 TINYFISH_API_KEY = os.getenv("TINYFISH_API_KEY", "")
@@ -1721,6 +1729,7 @@ function makeTimeline(labels,values,el){
   if(el._chart)el._chart.destroy();el._chart=new Chart(el,cfg);
 }
 let lastData=null;
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function renderStats(d){
   document.getElementById('uptime').textContent='Uptime: '+d.uptime;
   document.getElementById('requests').textContent=d.total_requests;
@@ -1736,8 +1745,8 @@ function renderStats(d){
     makeTimeline(Object.keys(d.hourly_requests).map(k=>k.length>5?k.slice(6):k),Object.values(d.hourly_requests),document.getElementById('timelineChart'));
     makeBar(Object.keys(d.model_avg_rt),Object.values(d.model_avg_rt),document.getElementById('rtChart'));
   }
-  document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+r.time+'</td><td>'+r.model+'</td><td>'+(r.skill!=='-'?'<span class="badge badge-green">'+r.skill+'</span>':'<span style="color:#475569">-</span>')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.question+'</td><td>'+r.rt+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">FAIL</span>')+'</td></tr>').join('');
-  document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+r.time+'</td><td class="err" style="font-size:.8em">'+r.error+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#475569">No errors</td></tr>';
+  document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+esc(r.time)+'</td><td>'+esc(r.model)+'</td><td>'+(r.skill&&r.skill!=='-'?'<span class="badge badge-green">'+esc(r.skill)+'</span>':'<span style="color:#475569">-</span>')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.question)+'</td><td>'+esc(r.rt)+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">FAIL</span>')+'</td></tr>').join('');
+  document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+esc(r.time)+'</td><td class="err" style="font-size:.8em">'+esc(r.error)+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#475569">No errors</td></tr>';
 }
 async function refresh(){
   try{
