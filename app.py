@@ -1231,6 +1231,7 @@ async def demo_chat(request: Request):
                 "message": "Percobaan unlock terlalu banyak. Coba lagi besok ya 🔒",
             })
         if key and key in _valid_owner_keys():
+            _demo_usage["unlock_fails"].pop(ip, None)
             exp = time.time() + int(_demo_settings["owner_session_min"]) * 60
             _demo_usage["admins"][ip] = {"exp": exp}
             _save_demo()
