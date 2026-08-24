@@ -9,7 +9,7 @@ import httpx
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from google import genai
 from google.genai.types import GenerateContentConfig, Blob, Part
 
@@ -32,6 +32,9 @@ DASHBOARD_SECRET = os.getenv("YUKI_DASHBOARD_SECRET", "")
 DEMO_MASTER_SECRET = os.getenv("YUKI_DEMO_MASTER_SECRET", "")
 OWNER_CHAT_ID = os.getenv("YUKI_OWNER_CHAT_ID", "")
 TG_BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
+ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")
+SESSION_KEY = os.getenv("ADMIN_SESSION_SECRET", "") or DASHBOARD_SECRET
 
 if not GEMINI_API_KEY and not OPENROUTER_API_KEY:
     raise ValueError("Minimal 1 API key harus diisi.")
@@ -1297,10 +1300,185 @@ async def health():
     return {"status": "ok", "bot": "yuki", "providers": providers}
 
 
-@app.get("/stats/{secret}")
-async def stats(secret: str):
-    if not DASHBOARD_SECRET or secret != DASHBOARD_SECRET:
-        return JSONResponse(status_code=404, content={"error": "not found"})
+# ── Login admin & sesi dashboard ───────────────────────────────────
+COOKIE_NAME = "yuki_admin"
+SESSION_TTL = 7 * 24 * 3600  # 7 hari
+_admin_fails = {}
+
+
+def _admin_blocked(ip):
+    b = _admin_fails.get(ip)
+    if not b:
+        return 0
+    left = int(b.get("blocked_until", 0) - time.time())
+    if left <= 0:
+        _admin_fails.pop(ip, None)
+        return 0
+    return left
+
+
+def _record_admin_fail(ip):
+    b = _admin_fails.setdefault(ip, {"fails": 0, "blocked_until": 0})
+    b["fails"] += 1
+    if b["fails"] >= 5:
+        b["blocked_until"] = time.time() + 30 * 60
+        b["fails"] = 0
+
+
+def _session_token():
+    exp = str(int(time.time()) + SESSION_TTL)
+    sig = hmac.new(SESSION_KEY.encode(), exp.encode(), hashlib.sha256).hexdigest()
+    return f"{exp}.{sig}"
+
+
+def _valid_session(token):
+    if not token or "." not in token:
+        return False
+    try:
+        exp_s, sig = token.split(".", 1)
+        int(exp_s)
+    except ValueError:
+        return False
+    expect = hmac.new(SESSION_KEY.encode(), exp_s.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expect):
+        return False
+    return int(exp_s) > time.time()
+
+
+def _is_logged_in(request: Request):
+    return _valid_session(request.cookies.get(COOKIE_NAME, ""))
+
+
+def _check_credentials(username, password):
+    u_ok = bool(ADMIN_USERNAME) and hmac.compare_digest(
+        username.encode()[:256], ADMIN_USERNAME.encode()[:256]
+    )
+    p_ok = bool(ADMIN_PASSWORD_HASH) and hmac.compare_digest(
+        hashlib.sha256(password.encode()).hexdigest(),
+        ADMIN_PASSWORD_HASH.strip().lower(),
+    )
+    return u_ok and p_ok
+
+
+LOGIN_HTML = """<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yuki Admin</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0F172A;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;overflow-x:hidden}
+body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 20% 50%,rgba(129,140,248,.12) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(168,85,247,.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 80%,rgba(244,114,182,.08) 0%,transparent 50%);animation:bgPulse 18s ease-in-out infinite;z-index:-1}
+@keyframes bgPulse{0%,100%{transform:translate(0,0)}50%{transform:translate(-2%,-2%)}}
+.card{width:100%;max-width:380px;background:rgba(30,41,59,.65);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.09);border-radius:22px;padding:38px 32px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.logo{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#6366F1,#A855F7,#EC4899);display:flex;align-items:center;justify-content:center;font-size:1.8em;color:#fff;margin:0 auto 18px;box-shadow:0 8px 28px rgba(139,92,246,.4)}
+h1{text-align:center;font-size:1.45em;font-weight:700;letter-spacing:-.3px}
+.sub{text-align:center;color:#64748b;font-size:.82em;margin:6px 0 26px}
+label{display:block;color:#94a3b8;font-size:.78em;font-weight:600;margin-bottom:6px}
+input{width:100%;background:rgba(15,23,42,.75);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 14px;color:#e2e8f0;font-family:inherit;font-size:.95em;outline:none;margin-bottom:16px;transition:border-color .2s}
+input:focus{border-color:#818CF8}
+button{width:100%;background:linear-gradient(135deg,#6366F1,#8B5CF6);border:none;border-radius:12px;padding:13px;color:#fff;font-weight:700;font-family:inherit;font-size:.95em;cursor:pointer;transition:filter .2s;margin-top:4px}
+button:hover{filter:brightness(1.15)}
+button:disabled{filter:grayscale(.5);cursor:not-allowed}
+.err{min-height:20px;text-align:center;color:#F87171;font-size:.82em;margin-bottom:8px}
+.shake{animation:shake .4s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.foot{margin-top:22px;text-align:center;color:#475569;font-size:.72em;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="logo">&#x2661;</div>
+  <h1>Yuki Admin</h1>
+  <div class="sub">Masuk untuk membuka dashboard</div>
+  <form id="f">
+    <label>Username</label>
+    <input id="u" autocomplete="username" required>
+    <label>Password</label>
+    <input id="p" type="password" autocomplete="current-password" required>
+    <div class="err" id="err"></div>
+    <button id="b">Masuk</button>
+  </form>
+  <div class="foot">YUKI AI SERVER &middot; yuki-ai.tech</div>
+</div>
+<script>
+const f=document.getElementById('f'),b=document.getElementById('b'),err=document.getElementById('err');
+f.addEventListener('submit',async e=>{
+  e.preventDefault();
+  b.disabled=true;b.textContent='Memeriksa...';err.textContent='';
+  try{
+    const r=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('u').value.trim(),password:document.getElementById('p').value})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok){window.location.href='/admin';return;}
+    if(d.error==='blocked'){err.textContent='Terlalu banyak percobaan. Coba lagi dalam '+d.minutes+' menit.';}
+    else if(d.error==='bad'){err.textContent='Username atau password salah'+(d.left!==undefined?' \u00b7 sisa '+(d.left===0?'percobaan terakhir':d.left+'x'):'');}
+    else{err.textContent='Gagal memproses ('+r.status+')';}
+    document.getElementById('card').classList.remove('shake');void document.getElementById('card').offsetWidth;
+    document.getElementById('card').classList.add('shake');
+  }catch(x){err.textContent='Tidak bisa terhubung ke server';}
+  b.disabled=false;b.textContent='Masuk';
+});
+</script>
+</body></html>"""
+
+
+@app.get("/admin")
+async def admin_page(request: Request):
+    if not (ADMIN_USERNAME and ADMIN_PASSWORD_HASH and SESSION_KEY):
+        return HTMLResponse(
+            "<body style='background:#0F172A;color:#F87171;font-family:sans-serif;padding:40px'>"
+            "Login admin nonaktif: set ADMIN_USERNAME, ADMIN_PASSWORD_HASH, ADMIN_SESSION_SECRET di .env</body>",
+            status_code=503,
+        )
+    if _is_logged_in(request):
+        return HTMLResponse(DASHBOARD_HTML)
+    return HTMLResponse(LOGIN_HTML)
+
+
+@app.post("/admin/login")
+async def admin_login(request: Request):
+    ip = _client_ip(request)
+    blocked = _admin_blocked(ip)
+    if blocked:
+        return JSONResponse(status_code=429, content={
+            "error": "blocked", "minutes": max(1, -(-blocked // 60)),
+        })
+    try:
+        data = json.loads(await request.body())
+        username = str(data.get("username") or "")
+        password = str(data.get("password") or "")
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "bad_request"})
+    if not username or not password:
+        return JSONResponse(status_code=400, content={"error": "bad_request"})
+    if _check_credentials(username, password):
+        _admin_fails.pop(ip, None)
+        resp = JSONResponse(content={"ok": True})
+        resp.set_cookie(COOKIE_NAME, _session_token(), max_age=SESSION_TTL,
+                        httponly=True, secure=True, samesite="lax", path="/")
+        logger.info(f"Admin login berhasil ({ip})")
+        return resp
+    _record_admin_fail(ip)
+    sisa = max(0, 5 - _admin_fails[ip]["fails"])
+    logger.warning(f"Admin login gagal ({ip})")
+    return JSONResponse(status_code=401, content={"error": "bad", "left": sisa})
+
+
+@app.get("/admin/logout")
+async def admin_logout(request: Request):
+    ip = _client_ip(request)
+    if _is_logged_in(request):
+        logger.info(f"Admin logout ({ip})")
+    resp = HTMLResponse("", status_code=303)
+    resp.headers["Location"] = "/admin"
+    resp.delete_cookie(COOKIE_NAME, path="/")
+    return resp
+
+
+@app.get("/stats")
+async def stats(request: Request):
+    if not _is_logged_in(request):
+        return JSONResponse(status_code=401, content={"error": "unauthorized"})
     # Compute average response times
     model_avg = {}
     for m, times in _stats["model_response_times"].items():
@@ -1333,10 +1511,10 @@ async def stats(secret: str):
     }
 
 
-@app.get("/settings/{secret}")
-async def get_settings(secret: str):
-    if not DASHBOARD_SECRET or secret != DASHBOARD_SECRET:
-        return JSONResponse(status_code=404, content={"error": "not found"})
+@app.get("/settings")
+async def get_settings(request: Request):
+    if not _is_logged_in(request):
+        return JSONResponse(status_code=401, content={"error": "unauthorized"})
     now = time.time()
     owner_active = {
         ip: int(a["exp"] - now)
@@ -1352,10 +1530,10 @@ async def get_settings(secret: str):
     }
 
 
-@app.post("/settings/{secret}")
-async def post_settings(request: Request, secret: str):
-    if not DASHBOARD_SECRET or secret != DASHBOARD_SECRET:
-        return JSONResponse(status_code=404, content={"error": "not found"})
+@app.post("/settings")
+async def post_settings(request: Request):
+    if not _is_logged_in(request):
+        return JSONResponse(status_code=401, content={"error": "unauthorized"})
     try:
         data = json.loads(await request.body())
     except Exception:
@@ -1381,14 +1559,6 @@ async def post_settings(request: Request, secret: str):
     _save_demo()
     logger.info(f"Pengaturan demo diperbarui: {changed}")
     return {"status": "ok", "settings": dict(_demo_settings)}
-
-
-@app.get("/dashboard/{secret}")
-async def dashboard(secret: str):
-    if not DASHBOARD_SECRET or secret != DASHBOARD_SECRET:
-        return JSONResponse(status_code=404, content={"error": "not found"})
-    from fastapi.responses import HTMLResponse
-    return HTMLResponse(DASHBOARD_HTML)
 
 
 DASHBOARD_HTML = """<!DOCTYPE html>
@@ -1445,6 +1615,8 @@ tr:hover{background:rgba(255,255,255,.02)}
 .nav-item:hover{background:rgba(255,255,255,.05);color:#e2e8f0}
 .nav-item.active{background:linear-gradient(135deg,rgba(99,102,241,.28),rgba(168,85,247,.28));color:#c7d2fe}
 .side-foot{margin-top:auto;padding:0 6px;color:#64748b;font-size:.78em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.side-foot .logout{margin-left:auto;color:#64748b;text-decoration:none;font-size:1.25em;line-height:1;transition:color .15s}
+.side-foot .logout:hover{color:#F87171}
 .content{flex:1;padding:26px 30px;max-width:1280px;margin:0 auto;width:100%;min-width:0}
 .tab{display:none}.tab.active{display:block}
 @media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.layout{flex-direction:column}.side{position:static;width:100%;height:auto;flex-direction:row;align-items:center;padding:12px 18px;gap:14px;border-right:none;border-bottom:1px solid rgba(129,140,248,.15)}.brand>div:last-child span{display:none}.nav{flex-direction:row;flex:1}.nav-item{width:auto;padding:9px 14px}.side-foot{margin:0}}
@@ -1459,7 +1631,7 @@ tr:hover{background:rgba(255,255,255,.02)}
     <button class="nav-item active" data-tab="stats">&#128202; <span>Statistik</span></button>
     <button class="nav-item" data-tab="demo">&#9881;&#65039; <span>Demo Chat</span></button>
   </nav>
-  <div class="side-foot"><span class="dot" style="display:inline-block"></span><span id="uptime">-</span></div>
+  <div class="side-foot"><span class="dot" style="display:inline-block"></span><span id="uptime">-</span><a class="logout" href="/admin/logout" title="Keluar">&#10162;</a></div>
 </aside>
 <main class="content">
 
@@ -1568,7 +1740,7 @@ function renderStats(d){
 }
 async function refresh(){
   try{
-    const r=await fetch('/stats/'+dashSecret());const d=await r.json();
+    const r=await fetch('/stats');const d=await r.json();
     lastData=d;renderStats(d);
     document.getElementById('status').textContent='ONLINE';document.getElementById('status').className='stat-val success';
   }catch(e){document.getElementById('status').textContent='OFFLINE';document.getElementById('status').className='stat-val danger';}
@@ -1580,10 +1752,9 @@ function switchTab(name){
 }
 const SET_FIELDS=[['owner_session_min','setOwnerSession'],['key_interval_min','setKeyInterval'],['limit_per_ip','setLimitIp'],['global_daily','setGlobalDaily']];
 const SET_RANGES={owner_session_min:[10,1440],key_interval_min:[15,1440],limit_per_ip:[1,20],global_daily:[10,200]};
-function dashSecret(){return window.location.pathname.split('/').pop();}
 async function loadSettings(){
   try{
-    const r=await fetch('/settings/'+dashSecret());const d=await r.json();
+    const r=await fetch('/settings');const d=await r.json();
     if(!d.settings)return;
     SET_FIELDS.forEach(([k,id])=>{document.getElementById(id).value=d.settings[k];});
     document.getElementById('keyPreview').textContent=d.key_preview;
@@ -1603,7 +1774,7 @@ document.getElementById('saveSetBtn').addEventListener('click',async()=>{
   }
   btn.disabled=true;st.textContent='Menyimpan...';st.className='';
   try{
-    const r=await fetch('/settings/'+dashSecret(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const r=await fetch('/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const d=await r.json();
     if(r.ok){st.textContent='\u2705 Tersimpan & langsung aktif';st.className='ok';loadSettings();}
     else{const rng=d.error==='out_of_range'?('harus '+d.min+'\u2013'+d.max):d.error;st.textContent=(d.field?d.field+': ':'')+rng;st.className='err';}
