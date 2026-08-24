@@ -1475,6 +1475,15 @@ async def admin_logout(request: Request):
     return resp
 
 
+@app.get("/admin/_dbg")
+async def admin_dbg(request: Request):
+    return {
+        "your_ip": _client_ip(request),
+        "dict_id": id(_admin_fails),
+        "snapshot": {k: dict(v) for k, v in _admin_fails.items()},
+    }
+
+
 @app.get("/stats")
 async def stats(request: Request):
     if not _is_logged_in(request):
