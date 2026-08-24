@@ -2078,9 +2078,9 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
   <div class="about-card glass">
     <img class="about-avatar" src="https://avatars.githubusercontent.com/u/317451300?v=4" alt="Y71" loading="lazy">
     <div class="about-body">
-      <h3>Y71 <span class="about-role">— Developer &amp; Builder</span></h3>
-      <p>Halo! Aku Y71 — developer yang suka ngoprek dan nggak bisa jauh dari kopi americano &#9749;. Yuki lahir dari satu rasa penasaran: seberapa jauh satu orang bisa membangun AI assistant sendiri, dari nol sampai online 24/7?</p>
-      <p>Jawabannya: bisa. Tanpa framework jadi, tanpa jasa siapa pun — arsitektur, kode, keamanan, deployment, sampai dashboard monitoring yang sedang kamu lihat ini, semuanya dirancang dan ditulis sendiri. Gagal, perbaiki, ulangi. Itu siklusnya.</p>
+      <h3>Y71 <span class="about-role">— Bukan Developer, Cuma Suka Ngulik</span></h3>
+      <p>Halo! Aku Y71 — bukan developer, cuma orang yang kepo-an dan nggak bisa jauh dari kopi americano &#9749;. Yuki lahir dari satu pertanyaan iseng: seberapa jauh orang biasa bisa membangun AI assistant sendiri, dari nol sampai online 24/7?</p>
+      <p>Ternyata: bisa. Aku belajar sambil jalan — dari cara kerja model AI, menulis kode, mengamankan sistem, sampai memasangnya di server sendiri. Jujur, masih banyak yang belum aku tahu, dan aku oke dengan itu. Yang penting: Yuki yang sedang kamu ajak ngobrol ini nyata, dan semuanya berawal dari rasa penasaran. Kalau aku bisa, kamu juga bisa.</p>
       <div class="about-stats">
         <span class="chip">&#128640; 2 Layanan Produksi</span>
         <span class="chip">&#129504; 10+ Skill Aktif</span>
