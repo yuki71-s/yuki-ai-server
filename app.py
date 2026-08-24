@@ -1969,6 +1969,17 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
 .chip{padding:8px 16px;border-radius:99px;background:rgba(129,140,248,.09);border:1px solid rgba(129,140,248,.22);color:#c7d2fe;font-size:.78em;font-weight:500}
 .gh-mini{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cbd5e1;font-size:.82em;font-weight:600;text-decoration:none;transition:all .2s}
 .gh-mini:hover{border-color:#818CF8;color:#fff;transform:translateY(-2px)}
+.test-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.test-card{padding:24px;transition:transform .2s,box-shadow .2s}
+.test-card:hover{transform:translateY(-4px);box-shadow:0 16px 48px rgba(0,0,0,.4)}
+.test-card h4{color:#fff;font-size:1em;margin-bottom:10px}
+.test-card>p{color:#94a3b8;font-size:.84em;line-height:1.65;margin-bottom:10px}
+.test-card ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px}
+.test-card li{color:#94a3b8;font-size:.82em;line-height:1.6}
+.test-card li::marker{color:#818CF8}
+.test-card.badge{background:linear-gradient(135deg,rgba(99,102,241,.16),rgba(168,85,247,.16));border-color:rgba(129,140,248,.35);display:flex;flex-direction:column;justify-content:center;text-align:center}
+.test-card.badge h4{color:#c7d2fe}
+.test-card.badge .big{font-size:1.15em;font-weight:700;color:#fff;margin-bottom:8px}
 @media(max-width:700px){.about-card{flex-direction:column;align-items:center;text-align:center}.about-stats{justify-content:center}}
 .hero-wrap{max-width:1160px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);gap:56px;align-items:center;min-height:calc(100vh - 150px)}
 .hero-left{text-align:left}
