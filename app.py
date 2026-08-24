@@ -1319,10 +1319,11 @@ def _admin_blocked(ip):
 
 def _record_admin_fail(ip):
     b = _admin_fails.setdefault(ip, {"fails": 0, "blocked_until": 0})
+    if b.get("blocked_until", 0) > time.time():
+        return
     b["fails"] += 1
     if b["fails"] >= 5:
         b["blocked_until"] = time.time() + 30 * 60
-        b["fails"] = 0
 
 
 def _session_token():
@@ -1462,7 +1463,6 @@ async def admin_login(request: Request):
     sisa = max(0, 5 - _admin_fails[ip]["fails"])
     logger.warning(f"Admin login gagal ({ip})")
     return JSONResponse(status_code=401, content={"error": "bad", "left": sisa})
-
 
 @app.get("/admin/logout")
 async def admin_logout(request: Request):
