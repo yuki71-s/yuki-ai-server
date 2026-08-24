@@ -1852,14 +1852,14 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
 .nav-logo img{width:26px;height:26px;border-radius:7px}
 .nav-links a{color:#94a3b8;text-decoration:none;font-size:.88em;margin-left:22px;transition:color .2s}
 .nav-links a:hover{color:#818CF8}
-.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 24px;position:relative}
+.hero{position:relative;padding:128px 24px 64px}
 .hero-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 20px;border-radius:30px;font-size:.85em;font-weight:500;margin-bottom:24px;color:#818CF8;background:rgba(129,140,248,.1);border:1px solid rgba(129,140,248,.2)}
 .hero-badge .dot{width:8px;height:8px;border-radius:50%;background:#22C55E;box-shadow:0 0 8px #22C55E;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.hero h1{font-size:clamp(2.5em,6vw,4.5em);font-weight:800;line-height:1.1;margin-bottom:16px;letter-spacing:-1px}
+.hero h1{font-size:clamp(2.6em,4.6vw,3.7em);font-weight:800;line-height:1.08;margin-bottom:18px;letter-spacing:-1px}
 .hero h1 span{background:linear-gradient(135deg,#818CF8,#F472B6,#22D3EE);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.hero p{font-size:1.15em;color:#94a3b8;max-width:600px;line-height:1.7;margin-bottom:40px}
-.section{max-width:1000px;margin:0 auto;padding:80px 24px;scroll-margin-top:70px}
+.hero p{font-size:1.12em;color:#94a3b8;max-width:560px;line-height:1.7;margin-bottom:30px}
+.section{max-width:1000px;margin:0 auto;padding:72px 24px;scroll-margin-top:70px}
 .section-title{font-size:1.8em;font-weight:700;text-align:center;margin-bottom:12px}
 .section-title span{color:#818CF8}
 .section-sub{text-align:center;color:#64748b;margin-bottom:48px;font-size:.95em}
@@ -1881,8 +1881,8 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
 .tech-dot .fb{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.2em;font-weight:700}
 .tech-dot.loaded .fb{display:none}
 .tech-dot img{position:relative;z-index:1;width:26px;height:26px;border-radius:6px;object-fit:contain}
-.phone-wrap{display:flex;justify-content:center}
-.phone{width:100%;max-width:430px;height:520px;border-radius:24px;overflow:hidden;display:flex;flex-direction:column;background:rgba(15,23,42,.72)}
+.hero-right{display:flex;flex-direction:column;align-items:center;scroll-margin-top:96px}
+.phone{width:100%;max-width:430px;height:520px;border-radius:24px;overflow:hidden;display:flex;flex-direction:column;background:rgba(15,23,42,.72);box-shadow:0 30px 80px rgba(99,102,241,.28),0 0 0 1px rgba(129,140,248,.14);animation:floaty 7s ease-in-out infinite}
 .chat-head{display:flex;align-items:center;gap:12px;padding:14px 18px;background:rgba(30,41,59,.85);border-bottom:1px solid rgba(255,255,255,.06)}
 .chat-head img{width:36px;height:36px;border-radius:50%}
 .chat-id b{display:block;color:#fff;font-size:.95em}
@@ -1931,6 +1931,16 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
 .gh-mini{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#cbd5e1;font-size:.82em;font-weight:600;text-decoration:none;transition:all .2s}
 .gh-mini:hover{border-color:#818CF8;color:#fff;transform:translateY(-2px)}
 @media(max-width:700px){.about-card{flex-direction:column;align-items:center;text-align:center}.about-stats{justify-content:center}}
+.hero-wrap{max-width:1160px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);gap:56px;align-items:center;min-height:calc(100vh - 150px)}
+.hero-left{text-align:left}
+.hero-left .hero-badge{margin-bottom:22px}
+.hero-btns{justify-content:flex-start;margin-top:0}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.scroll-cue{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);color:#475569;text-decoration:none;line-height:1;transition:color .2s}
+.scroll-cue:hover{color:#818CF8}
+.scroll-cue svg{animation:cue 2s ease-in-out infinite;display:block}
+@keyframes cue{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(8px);opacity:1}}
+@media(max-width:1024px){.hero-wrap{grid-template-columns:1fr;gap:44px;min-height:auto;text-align:center}.hero-left{text-align:center}.hero p{max-width:600px;margin-left:auto;margin-right:auto}.hero-btns{justify-content:center}.hero{padding-top:110px}}
 @media(max-width:768px){
 .nav-links a{margin-left:14px;font-size:.8em}
 .nav-links a.hide-m{display:none}
@@ -1947,7 +1957,7 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
 .stats-row{grid-template-columns:1fr}
 .phone{height:470px}
 }
-@media(prefers-reduced-motion:reduce){#bg3d{display:none}}
+@media(prefers-reduced-motion:reduce){#bg3d{display:none}.phone{animation:none}.scroll-cue svg{animation:none}}
 </style>
 </head>
 <body>
@@ -1966,32 +1976,33 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
   </div>
 </nav>
 <section class="hero" id="top">
-  <div class="hero-badge"><div class="dot"></div> Live &amp; Running</div>
-  <h1>Meet <span>Yuki</span></h1>
-  <p>Personal AI assistant yang dibangun dengan hati. Web search, vision, cuaca, memory, dan 10+ skill — semuanya open-source.</p>
-  <div class="hero-btns">
-    <a class="btn-primary" href="#demo">&#127918; Coba Demo</a>
-    <a class="btn-ghost" href="https://github.com/yuki71-s" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg> Lihat Kode</a>
-  </div>
-</section>
-<div class="section" id="demo">
-  <div class="section-title">Coba <span>Langsung</span></div>
-  <div class="section-sub">Ngobrol sama Yuki langsung dari sini — tanpa install apa pun</div>
-  <div class="phone-wrap">
-    <div class="phone glass">
-      <div class="chat-head"><img src="/favicon.svg" alt="Yuki"><div class="chat-id"><b>Yuki</b><span>&#9679; online</span></div></div>
-      <div class="chat-body" id="chatBody"></div>
-      <div class="chat-foot" id="chatFoot">
-        <form id="chatForm" autocomplete="off">
-          <input id="chatInput" maxlength="300" placeholder="Tulis pesan buat Yuki...">
-          <button id="chatSend" type="submit" aria-label="Kirim">&#10148;</button>
-        </form>
-        <div class="quota" id="quotaChip"></div>
+  <div class="hero-wrap">
+    <div class="hero-left">
+      <div class="hero-badge"><div class="dot"></div> Live &amp; Running</div>
+      <h1>Meet <span>Yuki</span></h1>
+      <p>Personal AI assistant yang dibangun dengan hati. Web search, vision, cuaca, memory, dan 10+ skill — semuanya open-source.</p>
+      <div class="hero-btns">
+        <a class="btn-primary" href="#demo" onclick="setTimeout(function(){var i=document.getElementById('chatInput');if(i){try{i.focus({preventScroll:false})}catch(e){i.focus()}}},350)">&#127918; Mulai Ngobrol</a>
+        <a class="btn-ghost" href="https://github.com/yuki71-s" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg> Lihat Kode</a>
       </div>
     </div>
+    <div class="hero-right" id="demo">
+      <div class="phone glass">
+        <div class="chat-head"><img src="/favicon.svg" alt="Yuki"><div class="chat-id"><b>Yuki</b><span>&#9679; online</span></div></div>
+        <div class="chat-body" id="chatBody"></div>
+        <div class="chat-foot" id="chatFoot">
+          <form id="chatForm" autocomplete="off">
+            <input id="chatInput" maxlength="300" placeholder="Tulis pesan buat Yuki...">
+            <button id="chatSend" type="submit" aria-label="Kirim">&#10148;</button>
+          </form>
+          <div class="quota" id="quotaChip"></div>
+        </div>
+      </div>
+      <p class="demo-note">Gratis 5 pesan / 24 jam &middot; chat tidak disimpan &middot; dibatasi biar adil buat semua orang &#x1F604;</p>
+    </div>
   </div>
-  <p class="demo-note">Gratis 5 pesan / 24 jam &middot; chat tidak disimpan &middot; dibatasi biar adil buat semua orang &#x1F604;</p>
-</div>
+  <a class="scroll-cue" href="#fitur" aria-label="Gulir ke bawah"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></a>
+</section>
 <div class="section" id="fitur">
   <div class="section-title">Fitur <span>Unggulan</span></div>
   <div class="section-sub">Semua yang dibutuhkan dalam satu asisten AI</div>
