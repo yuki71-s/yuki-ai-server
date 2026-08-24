@@ -963,6 +963,7 @@ SETTINGS_RANGES = {
 }
 _demo_settings = dict(DEFAULT_SETTINGS)
 _demo_usage = {"ips": {}, "admins": {}, "unlock_fails": {}, "settings": {}, "global": {}}
+_last_sent_slot = {"slot": None}
 
 
 def _load_demo():
@@ -984,6 +985,7 @@ def _load_demo():
                         continue
                     if lo <= v <= hi:
                         _demo_settings[k] = v
+            _last_sent_slot["slot"] = data.get("last_key_slot")
             logger.info(f"Pengaturan demo dimuat: {_demo_settings}")
     except Exception as e:
         logger.error(f"Gagal muat demo_usage: {e}")
@@ -1015,6 +1017,7 @@ def _save_demo():
         _demo_usage["unlock_fails"] = fresh_fails
         _demo_usage["global"] = {d: c for d, c in _demo_usage["global"].items() if d >= today}
         _demo_usage["settings"] = dict(_demo_settings)
+        _demo_usage["last_key_slot"] = _last_sent_slot["slot"]
         tmp = DEMO_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(_demo_usage, f)
@@ -1086,9 +1089,6 @@ def _unlock_fail_count(ip):
 def _record_unlock_fail(ip):
     _demo_usage["unlock_fails"].setdefault(ip, []).append(time.time())
     _save_demo()
-
-
-_last_sent_slot = {"slot": None}
 
 
 async def _send_owner_key():
