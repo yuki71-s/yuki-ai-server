@@ -1702,16 +1702,6 @@ tr:hover{background:rgba(255,255,255,.02)}
 .revoke-btn:hover{background:rgba(244,114,182,.2);filter:brightness(1.15)}
 .revoke-btn:disabled{filter:grayscale(.6);cursor:not-allowed}
 .revoke-hint{color:#64748b;font-size:.75em}
-.test-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
-.test-card{padding:24px}
-.test-card h4{color:#fff;font-size:1em;margin-bottom:10px}
-.test-card>p{color:#94a3b8;font-size:.84em;line-height:1.65;margin-bottom:10px}
-.test-card ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px}
-.test-card li{color:#94a3b8;font-size:.82em;line-height:1.6}
-.test-card li::marker{color:#818CF8}
-.test-card.badge{background:linear-gradient(135deg,rgba(99,102,241,.16),rgba(168,85,247,.16));border-color:rgba(129,140,248,.35);display:flex;flex-direction:column;justify-content:center;text-align:center}
-.test-card.badge h4{color:#c7d2fe}
-.test-card.badge .big{font-size:1.15em;font-weight:700;color:#fff;margin-bottom:8px}
 @media(max-width:900px){.set-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:500px){.set-grid{grid-template-columns:1fr}}
 </style>
