@@ -1332,6 +1332,56 @@ async def stats(secret: str):
     }
 
 
+@app.get("/settings/{secret}")
+async def get_settings(secret: str):
+    if not DASHBOARD_SECRET or secret != DASHBOARD_SECRET:
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    now = time.time()
+    owner_active = {
+        ip: int(a["exp"] - now)
+        for ip, a in _demo_usage["admins"].items()
+        if isinstance(a, dict) and a.get("exp", 0) > now
+    }
+    return {
+        "status": "ok",
+        "settings": dict(_demo_settings),
+        "ranges": {k: {"min": v[0], "max": v[1]} for k, v in SETTINGS_RANGES.items()},
+        "key_preview": _owner_key(_key_slot_now()) or "-",
+        "owner_active": owner_active,
+    }
+
+
+@app.post("/settings/{secret}")
+async def post_settings(request: Request, secret: str):
+    if not DASHBOARD_SECRET or secret != DASHBOARD_SECRET:
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    try:
+        data = json.loads(await request.body())
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "bad_request"})
+    if not isinstance(data, dict):
+        return JSONResponse(status_code=400, content={"error": "bad_request"})
+    changed = {}
+    for k, (lo, hi) in SETTINGS_RANGES.items():
+        if k not in data:
+            continue
+        try:
+            v = int(data[k])
+        except (TypeError, ValueError):
+            return JSONResponse(status_code=400, content={"error": "invalid", "field": k})
+        if not (lo <= v <= hi):
+            return JSONResponse(status_code=400, content={
+                "error": "out_of_range", "field": k, "min": lo, "max": hi,
+            })
+        changed[k] = v
+    if not changed:
+        return JSONResponse(status_code=400, content={"error": "nothing_to_update"})
+    _demo_settings.update(changed)
+    _save_demo()
+    logger.info(f"Pengaturan demo diperbarui: {changed}")
+    return {"status": "ok", "settings": dict(_demo_settings)}
+
+
 @app.get("/dashboard/{secret}")
 async def dashboard(secret: str):
     if not DASHBOARD_SECRET or secret != DASHBOARD_SECRET:
@@ -1416,6 +1466,38 @@ tr:hover{background:rgba(255,255,255,.02)}
   <h3>Recent Errors</h3>
   <div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody id="errTable"></tbody></table></div>
 </div></div>
+<style>
+.set-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px}
+.set-field{display:flex;flex-direction:column;gap:6px}
+.set-field label{color:#94a3b8;font-size:.8em;font-weight:600}
+.set-field input{background:rgba(15,23,42,.7);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 12px;color:#e2e8f0;font-family:inherit;font-size:.95em;outline:none;width:100%}
+.set-field input:focus{border-color:#818CF8}
+.set-field small{color:#475569;font-size:.7em}
+.set-actions{display:flex;align-items:center;gap:14px;margin-top:16px}
+#saveSetBtn{background:linear-gradient(135deg,#6366F1,#8B5CF6);border:none;border-radius:10px;padding:11px 24px;color:#fff;font-weight:600;font-family:inherit;cursor:pointer;transition:filter .2s}
+#saveSetBtn:hover{filter:brightness(1.12)}
+#saveSetBtn:disabled{filter:grayscale(.6);cursor:not-allowed}
+#setStatus{font-size:.85em;color:#94a3b8}
+#setStatus.ok{color:#22C55E}#setStatus.err{color:#F87171}
+.set-info{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);color:#64748b;font-size:.78em}
+.set-info code{color:#F472B6;background:rgba(244,114,182,.08);padding:2px 8px;border-radius:6px}
+@media(max-width:900px){.set-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:500px){.set-grid{grid-template-columns:1fr}}
+</style>
+<div class="grid1"><div class="card glass">
+  <h3>&#9881;&#65039; Pengaturan Demo</h3>
+  <div class="set-grid">
+    <div class="set-field"><label>Durasi sesi owner (menit)</label><input type="number" id="setOwnerSession"><small>10&ndash;1440 menit</small></div>
+    <div class="set-field"><label>Interval kunci Telegram (menit)</label><input type="number" id="setKeyInterval"><small>15&ndash;1440 menit</small></div>
+    <div class="set-field"><label>Limit chat per IP</label><input type="number" id="setLimitIp"><small>1&ndash;20 pesan / 24 jam</small></div>
+    <div class="set-field"><label>Kuota harian global</label><input type="number" id="setGlobalDaily"><small>10&ndash;200 chat / hari</small></div>
+  </div>
+  <div class="set-actions">
+    <button id="saveSetBtn">Simpan Pengaturan</button>
+    <span id="setStatus"></span>
+  </div>
+  <div class="set-info">&#128273; Kunci slot saat ini: <code id="keyPreview">-</code> &middot; Sesi owner aktif: <span id="ownerActiveInfo">-</span></div>
+</div></div>
 <div class="refresh">AUTO-REFRESH 10s &middot; yuki-ai.tech</div>
 </div>
 <script>
@@ -1458,6 +1540,39 @@ async function refresh(){
     document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+r.time+'</td><td class="err" style="font-size:.8em">'+r.error+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#475569">No errors</td></tr>';
   }catch(e){document.getElementById('status').textContent='OFFLINE';document.getElementById('status').className='stat-val danger';}
 }
+const SET_FIELDS=[['owner_session_min','setOwnerSession'],['key_interval_min','setKeyInterval'],['limit_per_ip','setLimitIp'],['global_daily','setGlobalDaily']];
+const SET_RANGES={owner_session_min:[10,1440],key_interval_min:[15,1440],limit_per_ip:[1,20],global_daily:[10,200]};
+function dashSecret(){return window.location.pathname.split('/').pop();}
+async function loadSettings(){
+  try{
+    const r=await fetch('/settings/'+dashSecret());const d=await r.json();
+    if(!d.settings)return;
+    SET_FIELDS.forEach(([k,id])=>{document.getElementById(id).value=d.settings[k];});
+    document.getElementById('keyPreview').textContent=d.key_preview;
+    const oa=Object.entries(d.owner_active||{});
+    document.getElementById('ownerActiveInfo').textContent=oa.length?oa.map(([ip,s])=>ip+' ('+Math.ceil(s/60)+'m)').join(', '):'tidak ada';
+  }catch(e){}
+}
+document.getElementById('saveSetBtn').addEventListener('click',async()=>{
+  const btn=document.getElementById('saveSetBtn');const st=document.getElementById('setStatus');
+  const payload={};
+  for(const [k,id] of SET_FIELDS){
+    const v=parseInt(document.getElementById(id).value,10);
+    if(isNaN(v)){st.textContent='Isi semua angka dengan benar';st.className='err';return;}
+    const lo=SET_RANGES[k][0],hi=SET_RANGES[k][1];
+    if(v<lo||v>hi){st.textContent=k+': harus '+lo+'\u2013'+hi;st.className='err';return;}
+    payload[k]=v;
+  }
+  btn.disabled=true;st.textContent='Menyimpan...';st.className='';
+  try{
+    const r=await fetch('/settings/'+dashSecret(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d=await r.json();
+    if(r.ok){st.textContent='\u2705 Tersimpan & langsung aktif';st.className='ok';loadSettings();}
+    else{const rng=d.error==='out_of_range'?('harus '+d.min+'\u2013'+d.max):d.error;st.textContent=(d.field?d.field+': ':'')+rng;st.className='err';}
+  }catch(e){st.textContent='Gagal terhubung ke server';st.className='err';}
+  btn.disabled=false;
+});
+loadSettings();
 refresh();setInterval(refresh,10000);
 </script>
 </body></html>"""
