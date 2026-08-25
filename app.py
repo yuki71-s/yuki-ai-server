@@ -25,14 +25,17 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-CANARY_TOKEN = "YUKI_SEC_0FDFF671FF4303F4"
+CANARY_TOKEN = os.getenv("YUKI_CANARY_TOKEN", "")
+if not CANARY_TOKEN:
+    raise ValueError("YUKI_CANARY_TOKEN harus diisi di .env")
 CANARY_CLEANED = re.sub(r'[^a-zA-Z0-9]', '', CANARY_TOKEN)
 CANARY_B64 = base64.b64encode(CANARY_TOKEN.encode()).decode()
 CANARY_HEX = CANARY_TOKEN.encode().hex()
-CANARY_FRAGMENTS = [
-    "YUKISEC", "SEC0FD", "0FDFF671", "FF4303F4",
-    "YUKISEC0FDFF671FF4303F4", "0FDFF671FF4303F4"
-]
+CANARY_FRAGMENTS = []
+if len(CANARY_CLEANED) >= 8:
+    for length in range(6, min(10, len(CANARY_CLEANED) + 1)):
+        for start in range(0, len(CANARY_CLEANED) - length + 1, max(1, length // 2)):
+            CANARY_FRAGMENTS.append(CANARY_CLEANED[start:start + length])
 
 
 @app.middleware("http")
@@ -60,6 +63,8 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 TINYFISH_API_KEY = os.getenv("TINYFISH_API_KEY", "")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 AUTH_TOKEN = os.getenv("YUKI_AUTH_TOKEN", "")
+if not AUTH_TOKEN:
+    raise ValueError("YUKI_AUTH_TOKEN harus diisi di .env")
 DASHBOARD_SECRET = os.getenv("YUKI_DASHBOARD_SECRET", "")
 DEMO_MASTER_SECRET = os.getenv("YUKI_DEMO_MASTER_SECRET", "")
 OWNER_CHAT_ID = os.getenv("YUKI_OWNER_CHAT_ID", "")
