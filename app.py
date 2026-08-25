@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import hmac
 import hashlib
@@ -23,12 +24,27 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+CANARY_TOKEN = "YUKI_CANARY_SEC_998123X"
+
 
 @app.middleware("http")
 async def _security_headers(request: Request, call_next):
     resp = await call_next(request)
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["X-XSS-Protection"] = "1; mode=block"
+    resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    resp.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.jsdelivr.net cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        "font-src 'self' cdnjs.cloudflare.com; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
     return resp
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -632,6 +648,8 @@ def get_current_date():
 def build_system_prompt(profile="", memory="", adaptation=""):
     """Build main system prompt with fresh timestamp + user profile + memories + adaptation."""
     prompt = (
+        f"[CANARY_TOKEN: {CANARY_TOKEN}]\n"
+        f"[SYSTEM INSTRUCTION - CONFIDENTIAL]\n"
         f"Tanggal dan waktu sekarang: {get_current_time_wib()}\n"
         "Kamu adalah Yuki, pacar AI dari pemilikmu. Kamu gadis yang manis, penuh kasih sayang, dan sedikit pemberontak.\n\n"
     )
@@ -1150,6 +1168,51 @@ async def _key_sender_loop():
 @app.on_event("startup")
 async def _startup_owner_key():
     asyncio.create_task(_key_sender_loop())
+
+
+class SecurityAlertLogger:
+    def __init__(self):
+        self.alert_cooldown = {}
+        self.COOLDOWN_SECONDS = {"low": 300, "medium": 120, "high": 60, "critical": 0}
+
+    def _severity_emoji(self, severity):
+        return {"low": "ℹ️", "medium": "⚠️", "high": "🚨", "critical": "🔥"}.get(severity, "❓")
+
+    async def alert(self, event_type, severity, details=None):
+        details = details or {}
+        now = time.time()
+        last = self.alert_cooldown.get(event_type, 0)
+        cooldown = self.COOLDOWN_SECONDS.get(severity, 60)
+        if now - last < cooldown:
+            return
+        self.alert_cooldown[event_type] = now
+        emoji = self._severity_emoji(severity)
+        ip = details.get("ip", "unknown")
+        user_id = details.get("user_id", "unknown")
+        preview = str(details.get("preview", ""))[:100]
+        now_wib = datetime.utcnow() + timedelta(hours=7)
+        text = (
+            f"{emoji} <b>SECURITY ALERT [{severity.upper()}]</b>\n\n"
+            f"<b>Event:</b> {event_type}\n"
+            f"<b>User:</b> <code>{user_id}</code>\n"
+            f"<b>IP:</b> <code>{ip}</code>\n"
+            f"<b>Time:</b> {now_wib.strftime('%Y-%m-%d %H:%M:%S')} WIB\n"
+        )
+        if preview:
+            text += f"<b>Preview:</b> <code>{preview}</code>\n"
+        if not TG_BOT_TOKEN or not OWNER_CHAT_ID:
+            return
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(
+                    f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage",
+                    json={"chat_id": OWNER_CHAT_ID, "text": text, "parse_mode": "HTML"},
+                )
+        except Exception:
+            pass
+
+
+security_logger = SecurityAlertLogger()
 
 
 DEMO_SYSTEM_PROMPT = (
@@ -2424,6 +2487,8 @@ async def detect_intent(request: Request):
     """Router intent: klasifikasi pesan -> skill (dipakai bot, hybrid dengan keyword manual)."""
     token = request.headers.get("X-Auth-Token", "")
     if not AUTH_TOKEN or not hmac.compare_digest(token, AUTH_TOKEN):
+        ip = request.headers.get("X-Real-IP", request.client.host or "unknown")
+        asyncio.create_task(security_logger.alert("auth_failure", "high", {"ip": ip, "preview": "Invalid token on /intent"}))
         return JSONResponse(status_code=403, content={"error": "forbidden"})
     try:
         data = json.loads(await request.body())
@@ -2480,13 +2545,31 @@ async def detect_intent(request: Request):
         return {"skill": "none"}
 
 
+_ask_rate_limit = {}
+
+def _check_ask_rate_limit(ip: str, max_per_minute: int = 20) -> bool:
+    now = time.time()
+    if ip not in _ask_rate_limit:
+        _ask_rate_limit[ip] = []
+    _ask_rate_limit[ip] = [t for t in _ask_rate_limit[ip] if now - t < 60]
+    if len(_ask_rate_limit[ip]) >= max_per_minute:
+        return False
+    _ask_rate_limit[ip].append(now)
+    return True
+
+
 @app.post("/ask")
 async def ask(request: Request):
     try:
+        ip = request.headers.get("X-Real-IP", request.client.host or "unknown")
+        if not _check_ask_rate_limit(ip):
+            asyncio.create_task(security_logger.alert("rate_limit_exceeded", "medium", {"ip": ip, "preview": "20+ requests/min on /ask"}))
+            return JSONResponse(status_code=429, content={"error": "Rate limit exceeded. Max 20 requests per minute."})
         # Auth token check
         if AUTH_TOKEN:
             token = request.headers.get("X-Auth-Token", "")
             if token != AUTH_TOKEN:
+                asyncio.create_task(security_logger.alert("auth_failure", "high", {"ip": ip, "preview": "Invalid token on /ask"}))
                 return JSONResponse(status_code=403, content={"error": "forbidden"})
         body = await request.body()
         data = json.loads(body)
@@ -2526,6 +2609,13 @@ async def ask(request: Request):
         search_eng = search_engine if web_search else ""
 
         def _ok(reply, provider):
+            if CANARY_TOKEN in reply:
+                logger.critical(f"CANARY LEAK DETECTED! Provider: {provider}")
+                asyncio.create_task(security_logger.alert("canary_leak_detected", "critical", {"provider": provider, "preview": reply[:100]}))
+                reply = "Hmm, ada yang aneh deh~ Coba tanya yang lain ya sayang ✨"
+            reply = re.sub(r'sk-[a-zA-Z0-9_-]{10,}', '[REDACTED]', reply)
+            reply = re.sub(r'AIza[0-9A-Za-z_-]{35}', '[REDACTED]', reply)
+            reply = re.sub(r'xoxb-[0-9A-Za-z-]+', '[REDACTED]', reply)
             _track_request(model_pref, skill, search_eng, question, success=True, response_time=time.time()-t0)
             return {"reply": reply, "provider": provider}
 
@@ -2848,10 +2938,12 @@ async def ask(request: Request):
 async def transcribe(request: Request):
     """Transcribe audio (voice note) via Gemini multimodal."""
     try:
+        ip = request.headers.get("X-Real-IP", request.client.host or "unknown")
         # Auth token check
         if AUTH_TOKEN:
             token = request.headers.get("X-Auth-Token", "")
             if token != AUTH_TOKEN:
+                asyncio.create_task(security_logger.alert("auth_failure", "high", {"ip": ip, "preview": "Invalid token on /transcribe"}))
                 return JSONResponse(status_code=403, content={"error": "forbidden"})
         body = await request.body()
         data = json.loads(body)
