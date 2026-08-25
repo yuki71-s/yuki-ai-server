@@ -7,6 +7,7 @@ import logging
 import asyncio
 import time
 import base64
+import secrets
 import httpx
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -71,7 +72,9 @@ OWNER_CHAT_ID = os.getenv("YUKI_OWNER_CHAT_ID", "")
 TG_BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
 ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")
-SESSION_KEY = os.getenv("ADMIN_SESSION_SECRET", "") or DASHBOARD_SECRET
+SESSION_KEY = os.getenv("ADMIN_SESSION_SECRET", "")
+if not SESSION_KEY:
+    raise ValueError("ADMIN_SESSION_SECRET harus diisi di .env")
 
 if not GEMINI_API_KEY and not OPENROUTER_API_KEY:
     raise ValueError("Minimal 1 API key harus diisi.")
@@ -1398,25 +1401,45 @@ SESSION_TTL = 7 * 24 * 3600  # 7 hari
 _admin_fails = {}
 
 
-def _admin_blocked(ip):
-    b = _admin_fails.get(ip)
+def _admin_blocked(username):
+    b = _admin_fails.get(username)
     if not b:
         return 0
     bu = b.get("blocked_until", 0)
     if bu <= time.time():
         if bu:
-            _admin_fails.pop(ip, None)
+            _admin_fails.pop(username, None)
         return 0
     return int(bu - time.time())
 
 
-def _record_admin_fail(ip):
-    b = _admin_fails.setdefault(ip, {"fails": 0, "blocked_until": 0})
+def _record_admin_fail(username):
+    b = _admin_fails.setdefault(username, {"fails": 0, "blocked_until": 0})
     if b.get("blocked_until", 0) > time.time():
         return
     b["fails"] += 1
     if b["fails"] >= 5:
         b["blocked_until"] = time.time() + 30 * 60
+
+
+def _csrf_token():
+    ts = str(int(time.time()))
+    sig = hmac.new(SESSION_KEY.encode(), ts.encode(), hashlib.sha256).hexdigest()[:16]
+    return f"{ts}.{sig}"
+
+
+def _valid_csrf(token):
+    if not token or "." not in token:
+        return False
+    try:
+        ts_s, sig = token.split(".", 1)
+        ts = int(ts_s)
+    except (ValueError, AttributeError):
+        return False
+    if abs(time.time() - ts) > 300:
+        return False
+    expect = hmac.new(SESSION_KEY.encode(), ts_s.encode(), hashlib.sha256).hexdigest()[:16]
+    return hmac.compare_digest(sig, expect)
 
 
 def _session_token():
@@ -1458,6 +1481,7 @@ LOGIN_HTML = """<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="csrf-token" content="{{CSRF_TOKEN}}">
 <title>Yuki Admin</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -1486,6 +1510,7 @@ button:disabled{filter:grayscale(.5);cursor:not-allowed}
   <h1>Yuki Admin</h1>
   <div class="sub">Masuk untuk membuka dashboard</div>
   <form id="f">
+    <input type="hidden" id="csrf" value="{{CSRF_TOKEN}}">
     <label>Username</label>
     <input id="u" autocomplete="username" required>
     <label>Password</label>
@@ -1501,7 +1526,7 @@ f.addEventListener('submit',async e=>{
   e.preventDefault();
   b.disabled=true;b.textContent='Memeriksa...';err.textContent='';
   try{
-    const r=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('u').value.trim(),password:document.getElementById('p').value})});
+    const r=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('u').value.trim(),password:document.getElementById('p').value,csrf:document.getElementById('csrf').value})});
     const d=await r.json().catch(()=>({}));
     if(r.ok){window.location.href='/admin';return;}
     if(d.error==='blocked'){err.textContent='Terlalu banyak percobaan. Coba lagi dalam '+d.minutes+' menit.';}
@@ -1526,44 +1551,66 @@ async def admin_page(request: Request):
         )
     if _is_logged_in(request):
         return HTMLResponse(DASHBOARD_HTML)
-    return HTMLResponse(LOGIN_HTML)
+    csrf = _csrf_token()
+    html = LOGIN_HTML.replace("{{CSRF_TOKEN}}", csrf)
+    return HTMLResponse(html)
+
+
+_login_rate_limit = {}
+
+def _check_login_rate_limit(ip, max_per_minute=10):
+    now = time.time()
+    if ip not in _login_rate_limit:
+        _login_rate_limit[ip] = []
+    _login_rate_limit[ip] = [t for t in _login_rate_limit[ip] if now - t < 60]
+    if len(_login_rate_limit[ip]) >= max_per_minute:
+        return False
+    _login_rate_limit[ip].append(now)
+    return True
 
 
 @app.post("/admin/login")
 async def admin_login(request: Request):
     ip = _client_ip(request)
-    blocked = _admin_blocked(ip)
-    if blocked:
-        return JSONResponse(status_code=429, content={
-            "error": "blocked", "minutes": max(1, -(-blocked // 60)),
-        })
+    if not _check_login_rate_limit(ip):
+        return JSONResponse(status_code=429, content={"error": "rate_limited", "detail": "Too many login attempts"})
     try:
         data = json.loads(await request.body())
         username = str(data.get("username") or "")
         password = str(data.get("password") or "")
+        csrf = str(data.get("csrf") or "")
     except Exception:
         return JSONResponse(status_code=400, content={"error": "bad_request"})
     if not username or not password:
         return JSONResponse(status_code=400, content={"error": "bad_request"})
+    # CSRF check
+    if not _valid_csrf(csrf):
+        asyncio.create_task(security_logger.alert("auth_failure", "high", {"ip": ip, "preview": "Invalid CSRF token on /admin/login"}))
+        return JSONResponse(status_code=403, content={"error": "forbidden"})
+    # Per-username lockout
+    blocked = _admin_blocked(username)
+    if blocked:
+        return JSONResponse(status_code=429, content={
+            "error": "blocked", "minutes": max(1, -(-blocked // 60)),
+        })
     if _check_credentials(username, password):
-        _admin_fails.pop(ip, None)
+        _admin_fails.pop(username, None)
         resp = JSONResponse(content={"ok": True})
         resp.set_cookie(COOKIE_NAME, _session_token(), max_age=SESSION_TTL,
                         httponly=True, secure=True, samesite="lax", path="/")
-        logger.info(f"Admin login berhasil ({ip})")
+        logger.info(f"Admin login berhasil ({username}@{ip})")
         return resp
-    _record_admin_fail(ip)
-    sisa = max(0, 5 - _admin_fails[ip]["fails"])
-    logger.warning(f"Admin login gagal ({ip})")
+    _record_admin_fail(username)
+    sisa = max(0, 5 - _admin_fails[username]["fails"])
+    logger.warning(f"Admin login gagal ({username}@{ip})")
     return JSONResponse(status_code=401, content={"error": "bad", "left": sisa})
 
-@app.get("/admin/logout")
+@app.post("/admin/logout")
 async def admin_logout(request: Request):
     ip = _client_ip(request)
     if _is_logged_in(request):
         logger.info(f"Admin logout ({ip})")
-    resp = HTMLResponse("", status_code=303)
-    resp.headers["Location"] = "/admin"
+    resp = JSONResponse(content={"ok": True})
     resp.delete_cookie(COOKIE_NAME, path="/")
     return resp
 
@@ -1730,7 +1777,7 @@ tr:hover{background:rgba(255,255,255,.02)}
     <button class="nav-item active" data-tab="stats">&#128202; <span>Statistik</span></button>
     <button class="nav-item" data-tab="demo">&#9881;&#65039; <span>Demo Chat</span></button>
   </nav>
-  <div class="side-foot"><span class="dot" style="display:inline-block"></span><span id="uptime">-</span><a class="logout" href="/admin/logout" title="Keluar">&#10162;</a></div>
+  <div class="side-foot"><span class="dot" style="display:inline-block"></span><span id="uptime">-</span><a class="logout" href="#" onclick="fetch('/admin/logout',{method:'POST'}).then(()=>window.location='/admin');return false;" title="Keluar">&#10162;</a></div>
 </aside>
 <main class="content">
 
