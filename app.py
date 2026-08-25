@@ -1082,12 +1082,6 @@ _load_demo()
 
 
 def _client_ip(request: Request):
-    xrip = request.headers.get("X-Real-IP", "")
-    if xrip:
-        return xrip.strip()
-    xff = request.headers.get("X-Forwarded-For", "")
-    if xff:
-        return xff.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
 
@@ -2508,7 +2502,7 @@ async def detect_intent(request: Request):
     """Router intent: klasifikasi pesan -> skill (dipakai bot, hybrid dengan keyword manual)."""
     token = request.headers.get("X-Auth-Token", "")
     if not AUTH_TOKEN or not hmac.compare_digest(token, AUTH_TOKEN):
-        ip = request.headers.get("X-Real-IP", request.client.host or "unknown")
+        ip = request.client.host if request.client else "unknown"
         asyncio.create_task(security_logger.alert("auth_failure", "high", {"ip": ip, "preview": "Invalid token on /intent"}))
         return JSONResponse(status_code=403, content={"error": "forbidden"})
     try:
@@ -2582,16 +2576,15 @@ def _check_ask_rate_limit(ip: str, max_per_minute: int = 20) -> bool:
 @app.post("/ask")
 async def ask(request: Request):
     try:
-        ip = request.headers.get("X-Real-IP", request.client.host or "unknown")
+        ip = request.client.host if request.client else "unknown"
         if not _check_ask_rate_limit(ip):
             asyncio.create_task(security_logger.alert("rate_limit_exceeded", "medium", {"ip": ip, "preview": "20+ requests/min on /ask"}))
             return JSONResponse(status_code=429, content={"error": "Rate limit exceeded. Max 20 requests per minute."})
         # Auth token check
-        if AUTH_TOKEN:
-            token = request.headers.get("X-Auth-Token", "")
-            if token != AUTH_TOKEN:
-                asyncio.create_task(security_logger.alert("auth_failure", "high", {"ip": ip, "preview": "Invalid token on /ask"}))
-                return JSONResponse(status_code=403, content={"error": "forbidden"})
+        token = request.headers.get("X-Auth-Token", "")
+        if not hmac.compare_digest(token, AUTH_TOKEN):
+            asyncio.create_task(security_logger.alert("auth_failure", "high", {"ip": ip, "preview": "Invalid token on /ask"}))
+            return JSONResponse(status_code=403, content={"error": "forbidden"})
         body = await request.body()
         data = json.loads(body)
         question = data.get("question", "")
@@ -2991,13 +2984,12 @@ async def ask(request: Request):
 async def transcribe(request: Request):
     """Transcribe audio (voice note) via Gemini multimodal."""
     try:
-        ip = request.headers.get("X-Real-IP", request.client.host or "unknown")
+        ip = request.client.host if request.client else "unknown"
         # Auth token check
-        if AUTH_TOKEN:
-            token = request.headers.get("X-Auth-Token", "")
-            if token != AUTH_TOKEN:
-                asyncio.create_task(security_logger.alert("auth_failure", "high", {"ip": ip, "preview": "Invalid token on /transcribe"}))
-                return JSONResponse(status_code=403, content={"error": "forbidden"})
+        token = request.headers.get("X-Auth-Token", "")
+        if not hmac.compare_digest(token, AUTH_TOKEN):
+            asyncio.create_task(security_logger.alert("auth_failure", "high", {"ip": ip, "preview": "Invalid token on /transcribe"}))
+            return JSONResponse(status_code=403, content={"error": "forbidden"})
         body = await request.body()
         data = json.loads(body)
         audio_b64 = data.get("audio", "")
