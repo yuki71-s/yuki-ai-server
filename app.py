@@ -1483,30 +1483,31 @@ LOGIN_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="csrf-token" content="{{CSRF_TOKEN}}">
 <title>Yuki Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:#0F172A;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;overflow-x:hidden}
-body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 20% 50%,rgba(129,140,248,.12) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(168,85,247,.10) 0%,transparent 50%),radial-gradient(ellipse at 50% 80%,rgba(244,114,182,.08) 0%,transparent 50%);animation:bgPulse 18s ease-in-out infinite;z-index:-1}
-@keyframes bgPulse{0%,100%{transform:translate(0,0)}50%{transform:translate(-2%,-2%)}}
-.card{width:100%;max-width:380px;background:rgba(30,41,59,.65);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.09);border-radius:22px;padding:38px 32px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
-.logo{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#6366F1,#A855F7,#EC4899);display:flex;align-items:center;justify-content:center;font-size:1.8em;color:#fff;margin:0 auto 18px;box-shadow:0 8px 28px rgba(139,92,246,.4)}
-h1{text-align:center;font-size:1.45em;font-weight:700;letter-spacing:-.3px}
-.sub{text-align:center;color:#64748b;font-size:.82em;margin:6px 0 26px}
-label{display:block;color:#94a3b8;font-size:.78em;font-weight:600;margin-bottom:6px}
-input{width:100%;background:rgba(15,23,42,.75);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 14px;color:#e2e8f0;font-family:inherit;font-size:.95em;outline:none;margin-bottom:16px;transition:border-color .2s}
-input:focus{border-color:#818CF8}
-button{width:100%;background:linear-gradient(135deg,#6366F1,#8B5CF6);border:none;border-radius:12px;padding:13px;color:#fff;font-weight:700;font-family:inherit;font-size:.95em;cursor:pointer;transition:filter .2s;margin-top:4px}
-button:hover{filter:brightness(1.15)}
-button:disabled{filter:grayscale(.5);cursor:not-allowed}
-.err{min-height:20px;text-align:center;color:#F87171;font-size:.82em;margin-bottom:8px}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0D1117;color:#E6EDF3;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:100%;max-width:380px;background:#161B22;border:1px solid #21262D;border-radius:12px;padding:40px 32px}
+.logo{width:56px;height:56px;border-radius:12px;background:#21262D;border:1px solid #30363D;display:flex;align-items:center;justify-content:center;font-size:1.5em;font-weight:700;color:#E6EDF3;margin:0 auto 20px}
+h1{text-align:center;font-size:1.35em;font-weight:600;letter-spacing:-.3px;color:#E6EDF3}
+.sub{text-align:center;color:#8B949E;font-size:.82em;margin:6px 0 28px}
+label{display:block;color:#8B949E;font-size:.8em;font-weight:500;margin-bottom:6px}
+input{width:100%;background:#0D1117;border:1px solid #21262D;border-radius:8px;padding:10px 12px;color:#E6EDF3;font-family:inherit;font-size:.9em;outline:none;margin-bottom:16px;transition:border-color .15s}
+input:focus{border-color:#58A6FF}
+button{width:100%;background:#238636;border:1px solid rgba(63,185,80,.4);border-radius:8px;padding:11px;color:#fff;font-weight:600;font-family:inherit;font-size:.9em;cursor:pointer;transition:background .15s;margin-top:4px}
+button:hover{background:#2EA043}
+button:disabled{opacity:.5;cursor:not-allowed}
+.err{min-height:20px;text-align:center;color:#F85149;font-size:.82em;margin-bottom:8px}
 .shake{animation:shake .4s}
-@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
-.foot{margin-top:22px;text-align:center;color:#475569;font-size:.72em;letter-spacing:1px}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.foot{margin-top:24px;text-align:center;color:#484F58;font-size:.72em;letter-spacing:.5px}
 </style>
 </head>
 <body>
 <div class="card" id="card">
-  <div class="logo">&#x2661;</div>
+  <div class="logo">Y</div>
   <h1>Yuki Admin</h1>
   <div class="sub">Masuk untuk membuka dashboard</div>
   <form id="f">
@@ -1712,125 +1713,113 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yuki Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#0F172A;color:#e2e8f0;min-height:100vh;overflow-x:hidden}
-body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 20% 50%,rgba(129,140,248,.08) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(244,114,182,.06) 0%,transparent 50%),radial-gradient(ellipse at 50% 80%,rgba(34,211,238,.05) 0%,transparent 50%);animation:bgPulse 20s ease-in-out infinite;z-index:-1}
-@keyframes bgPulse{0%,100%{transform:translate(0,0)}50%{transform:translate(-2%,-1%)}}
-.glass{background:rgba(30,41,59,.6);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.3)}
-.header{background:rgba(15,23,42,.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:20px 30px;border-bottom:1px solid rgba(129,140,248,.2);position:sticky;top:0;z-index:100}
-.header-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-.header h1{font-size:1.6em;font-weight:700;color:#fff;letter-spacing:-.5px}
-.header h1 span{color:#818CF8}
-.header-right{display:flex;align-items:center;gap:16px}
-.dot{width:10px;height:10px;border-radius:50%;background:#22C55E;box-shadow:0 0 8px #22C55E;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-.container{max-width:1400px;margin:0 auto;padding:24px}
-.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-.grid1{margin-bottom:16px}
-.card{padding:24px;transition:transform .2s,box-shadow .2s}
-.card:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,0,0,.4)}
-.card h3{color:#818CF8;margin-bottom:16px;font-size:.8em;text-transform:uppercase;letter-spacing:1.5px;font-weight:600}
-.stat-val{font-size:2.4em;font-weight:800;color:#fff;line-height:1.1}
-.stat-val.accent{color:#818CF8}
-.stat-val.success{color:#22C55E}
-.stat-val.danger{color:#EF4444}
-.stat-val.warning{color:#F59E0B}
-.stat-label{color:#64748b;font-size:.8em;margin-top:6px;font-weight:500}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0D1117;color:#E6EDF3;min-height:100vh;overflow-x:hidden;font-variant-numeric:tabular-nums}
+.layout{display:flex;min-height:100vh}
+.side{width:232px;flex-shrink:0;background:#161B22;border-right:1px solid #21262D;padding:24px 16px;display:flex;flex-direction:column;gap:20px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:12px;padding:0 6px}
+.brand .logo{width:38px;height:38px;border-radius:8px;background:#21262D;border:1px solid #30363D;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1em;color:#E6EDF3;flex-shrink:0}
+.brand h2{margin:0;font-size:1em;color:#E6EDF3;font-weight:600;letter-spacing:.02em}
+.brand span{font-size:.62em;color:#8B949E;letter-spacing:.15em;font-weight:500;display:block;margin-top:2px}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav-item{display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:none;color:#8B949E;padding:10px 12px;border-radius:6px;font-family:inherit;font-size:.88em;font-weight:500;text-align:left;cursor:pointer;transition:background .12s,color .12s}
+.nav-item:hover{background:rgba(255,255,255,.04);color:#E6EDF3}
+.nav-item.active{background:rgba(56,139,255,.1);color:#58A6FF}
+.side-foot{margin-top:auto;padding:0 6px;color:#484F58;font-size:.75em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.side-foot .logout{margin-left:auto;color:#484F58;text-decoration:none;font-size:1.2em;line-height:1;transition:color .12s}
+.side-foot .logout:hover{color:#F85149}
+.content{flex:1;padding:24px 28px;max-width:1280px;margin:0 auto;width:100%;min-width:0}
+.tab{display:none}.tab.active{display:block}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.grid1{margin-bottom:12px}
+.card{background:#161B22;border:1px solid #21262D;border-radius:8px;padding:20px;transition:border-color .12s}
+.card:hover{border-color:#30363D}
+.card h3{color:#8B949E;margin-bottom:14px;font-size:.72em;text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.stat-val{font-size:2.2em;font-weight:700;color:#E6EDF3;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat-val.accent{color:#58A6FF}
+.stat-val.success{color:#3FB950}
+.stat-val.danger{color:#F85149}
+.stat-val.warning{color:#D29922}
+.stat-label{color:#8B949E;font-size:.78em;margin-top:6px;font-weight:500}
 .chart-container{position:relative;height:220px}
 .chart-container.tall{height:280px}
-table{width:100%;border-collapse:collapse;font-size:.82em}
-th{text-align:left;color:#64748b;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06);font-weight:600;text-transform:uppercase;font-size:.75em;letter-spacing:.5px}
-td{padding:10px;border-bottom:1px solid rgba(255,255,255,.03)}
+table{width:100%;border-collapse:collapse;font-size:.8em;font-variant-numeric:tabular-nums}
+th{text-align:left;color:#8B949E;padding:10px 10px;border-bottom:1px solid #21262D;font-weight:600;text-transform:uppercase;font-size:.72em;letter-spacing:.5px}
+td{padding:9px 10px;border-bottom:1px solid #21262D;color:#C9D1D9}
 tr:hover{background:rgba(255,255,255,.02)}
-.ok{color:#22C55E;font-weight:600}.err{color:#EF4444;font-weight:600}
-.refresh{color:#475569;font-size:.75em;text-align:center;padding:16px;letter-spacing:1px}
-.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.75em;font-weight:600}
-.badge-green{background:rgba(34,197,94,.15);color:#22C55E}
-.layout{display:flex;min-height:100vh}
-.side{width:232px;flex-shrink:0;background:rgba(10,15,32,.75);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-right:1px solid rgba(129,140,248,.15);padding:26px 16px;display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh}
-.brand{display:flex;align-items:center;gap:12px;padding:0 6px}
-.brand .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#6366F1,#A855F7);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.25em;color:#fff;flex-shrink:0}
-.brand h2{margin:0;font-size:1.05em;color:#fff;letter-spacing:.08em}
-.brand span{font-size:.62em;color:#64748b;letter-spacing:.22em;font-weight:600;display:block;margin-top:2px}
-.nav{display:flex;flex-direction:column;gap:6px}
-.nav-item{display:flex;align-items:center;gap:11px;width:100%;background:transparent;border:none;color:#94a3b8;padding:12px 14px;border-radius:11px;font-family:inherit;font-size:.93em;font-weight:500;text-align:left;cursor:pointer;transition:background .15s,color .15s}
-.nav-item:hover{background:rgba(255,255,255,.05);color:#e2e8f0}
-.nav-item.active{background:linear-gradient(135deg,rgba(99,102,241,.28),rgba(168,85,247,.28));color:#c7d2fe}
-.side-foot{margin-top:auto;padding:0 6px;color:#64748b;font-size:.78em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.side-foot .logout{margin-left:auto;color:#64748b;text-decoration:none;font-size:1.25em;line-height:1;transition:color .15s}
-.side-foot .logout:hover{color:#F87171}
-.content{flex:1;padding:26px 30px;max-width:1280px;margin:0 auto;width:100%;min-width:0}
-.tab{display:none}.tab.active{display:block}
-@media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.layout{flex-direction:column}.side{position:static;width:100%;height:auto;flex-direction:row;align-items:center;padding:12px 18px;gap:14px;border-right:none;border-bottom:1px solid rgba(129,140,248,.15)}.brand>div:last-child span{display:none}.nav{flex-direction:row;flex:1}.nav-item{width:auto;padding:9px 14px}.side-foot{margin:0}}
-@media(max-width:500px){.grid4{grid-template-columns:1fr}.content{padding:16px 12px}}
+.ok{color:#3FB950;font-weight:600}.err{color:#F85149;font-weight:600}
+.refresh{color:#484F58;font-size:.72em;text-align:center;padding:14px;letter-spacing:.5px}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72em;font-weight:600}
+.badge-green{background:rgba(63,185,80,.15);color:#3FB950}
+.set-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px}
+.set-field{display:flex;flex-direction:column;gap:5px}
+.set-field label{color:#8B949E;font-size:.78em;font-weight:500}
+.set-field input{background:#0D1117;border:1px solid #21262D;border-radius:6px;padding:9px 10px;color:#E6EDF3;font-family:inherit;font-size:.88em;outline:none;width:100%;transition:border-color .12s}
+.set-field input:focus{border-color:#58A6FF}
+.set-field small{color:#484F58;font-size:.7em}
+.set-actions{display:flex;align-items:center;gap:12px;margin-top:14px}
+#saveSetBtn{background:#238636;border:1px solid rgba(63,185,80,.4);border-radius:6px;padding:9px 20px;color:#fff;font-weight:600;font-family:inherit;cursor:pointer;transition:background .12s;font-size:.85em}
+#saveSetBtn:hover{background:#2EA043}
+#saveSetBtn:disabled{opacity:.5;cursor:not-allowed}
+#setStatus{font-size:.82em;color:#8B949E}
+#setStatus.ok{color:#3FB950}#setStatus.err{color:#F85149}
+.set-info{margin-top:12px;padding-top:10px;border-top:1px solid #21262D;color:#484F58;font-size:.75em}
+.set-info code{color:#79C0FF;background:rgba(56,139,255,.1);padding:2px 6px;border-radius:4px;font-size:.95em}
+.revoke-btn{background:transparent;border:1px solid #F85149;color:#F85149;border-radius:6px;padding:8px 16px;font-family:inherit;font-weight:600;font-size:.8em;cursor:pointer;transition:background .12s}
+.revoke-btn:hover{background:rgba(248,81,73,.1)}
+.revoke-btn:disabled{opacity:.5;cursor:not-allowed}
+.revoke-hint{color:#484F58;font-size:.72em}
+@media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.layout{flex-direction:column}.side{position:static;width:100%;height:auto;flex-direction:row;align-items:center;padding:10px 16px;gap:12px;border-right:none;border-bottom:1px solid #21262D}.brand>div:last-child span{display:none}.nav{flex-direction:row;flex:1}.nav-item{width:auto;padding:8px 12px}.side-foot{margin:0}.set-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:500px){.grid4{grid-template-columns:1fr}.content{padding:14px 10px}.set-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="layout">
 <aside class="side">
-  <div class="brand"><div class="logo">&#x2661;</div><div><h2>YUKI</h2><span>ADMIN PANEL</span></div></div>
+  <div class="brand"><div class="logo">Y</div><div><h2>YUKI</h2><span>ADMIN PANEL</span></div></div>
   <nav class="nav">
     <button class="nav-item active" data-tab="stats">&#128202; <span>Statistik</span></button>
     <button class="nav-item" data-tab="demo">&#9881;&#65039; <span>Demo Chat</span></button>
   </nav>
-  <div class="side-foot"><span class="dot" style="display:inline-block"></span><span id="uptime">-</span><a class="logout" href="#" onclick="fetch('/admin/logout',{method:'POST'}).then(()=>window.location='/admin');return false;" title="Keluar">&#10162;</a></div>
+  <div class="side-foot"><span id="uptime">-</span><a class="logout" href="#" onclick="fetch('/admin/logout',{method:'POST'}).then(()=>window.location='/admin');return false;" title="Keluar">&#10162;</a></div>
 </aside>
 <main class="content">
 
 <section id="tab-stats" class="tab active">
 <div class="grid4">
-  <div class="card glass"><h3>Status</h3><div class="stat-val success" id="status">ONLINE</div><div class="stat-label">server status</div></div>
-  <div class="card glass"><h3>Total Requests</h3><div class="stat-val accent" id="requests">-</div><div class="stat-label">since server start</div></div>
-  <div class="card glass"><h3>Avg Response</h3><div class="stat-val warning" id="avgRt">-</div><div class="stat-label">seconds per request</div></div>
-  <div class="card glass"><h3>Errors</h3><div class="stat-val" id="errors">-</div><div class="stat-label" id="errorRate">-</div></div>
+  <div class="card"><h3>Status</h3><div class="stat-val success" id="status">ONLINE</div><div class="stat-label">server status</div></div>
+  <div class="card"><h3>Total Requests</h3><div class="stat-val accent" id="requests">-</div><div class="stat-label">since server start</div></div>
+  <div class="card"><h3>Avg Response</h3><div class="stat-val warning" id="avgRt">-</div><div class="stat-label">seconds per request</div></div>
+  <div class="card"><h3>Errors</h3><div class="stat-val" id="errors">-</div><div class="stat-label" id="errorRate">-</div></div>
 </div>
 <div class="grid3">
-  <div class="card glass"><h3>Model Usage</h3><div class="chart-container"><canvas id="modelChart"></canvas></div></div>
-  <div class="card glass"><h3>Skill Usage</h3><div class="chart-container"><canvas id="skillChart"></canvas></div></div>
-  <div class="card glass"><h3>Search Usage</h3><div class="chart-container"><canvas id="searchChart"></canvas></div></div>
+  <div class="card"><h3>Model Usage</h3><div class="chart-container"><canvas id="modelChart"></canvas></div></div>
+  <div class="card"><h3>Skill Usage</h3><div class="chart-container"><canvas id="skillChart"></canvas></div></div>
+  <div class="card"><h3>Search Usage</h3><div class="chart-container"><canvas id="searchChart"></canvas></div></div>
 </div>
 <div class="grid2">
-  <div class="card glass"><h3>Requests (Last 12h)</h3><div class="chart-container tall"><canvas id="timelineChart"></canvas></div></div>
-  <div class="card glass"><h3>Avg Response Time by Model</h3><div class="chart-container tall"><canvas id="rtChart"></canvas></div></div>
+  <div class="card"><h3>Requests (Last 12h)</h3><div class="chart-container tall"><canvas id="timelineChart"></canvas></div></div>
+  <div class="card"><h3>Avg Response Time by Model</h3><div class="chart-container tall"><canvas id="rtChart"></canvas></div></div>
 </div>
-<div class="grid1"><div class="card glass">
+<div class="grid1"><div class="card">
   <h3>Recent Requests</h3>
   <div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Model</th><th>Skill</th><th>Question</th><th>RT</th><th>Status</th></tr></thead><tbody id="reqTable"></tbody></table></div>
 </div></div>
-<div class="grid1"><div class="card glass">
+<div class="grid1"><div class="card">
   <h3>Recent Errors</h3>
   <div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody id="errTable"></tbody></table></div>
 </div></div>
 </section>
 
 <section id="tab-demo" class="tab">
-<style>
-.set-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px}
-.set-field{display:flex;flex-direction:column;gap:6px}
-.set-field label{color:#94a3b8;font-size:.8em;font-weight:600}
-.set-field input{background:rgba(15,23,42,.7);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 12px;color:#e2e8f0;font-family:inherit;font-size:.95em;outline:none;width:100%}
-.set-field input:focus{border-color:#818CF8}
-.set-field small{color:#475569;font-size:.7em}
-.set-actions{display:flex;align-items:center;gap:14px;margin-top:16px}
-#saveSetBtn{background:linear-gradient(135deg,#6366F1,#8B5CF6);border:none;border-radius:10px;padding:11px 24px;color:#fff;font-weight:600;font-family:inherit;cursor:pointer;transition:filter .2s}
-#saveSetBtn:hover{filter:brightness(1.12)}
-#saveSetBtn:disabled{filter:grayscale(.6);cursor:not-allowed}
-#setStatus{font-size:.85em;color:#94a3b8}
-#setStatus.ok{color:#22C55E}#setStatus.err{color:#F87171}
-.set-info{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);color:#64748b;font-size:.78em}
-.set-info code{color:#F472B6;background:rgba(244,114,182,.08);padding:2px 8px;border-radius:6px}
-.revoke-btn{background:rgba(244,114,182,.1);border:1px solid rgba(244,114,182,.35);color:#F472B6;border-radius:10px;padding:9px 18px;font-family:inherit;font-weight:600;font-size:.82em;cursor:pointer;transition:all .2s}
-.revoke-btn:hover{background:rgba(244,114,182,.2);filter:brightness(1.15)}
-.revoke-btn:disabled{filter:grayscale(.6);cursor:not-allowed}
-.revoke-hint{color:#64748b;font-size:.75em}
-@media(max-width:900px){.set-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:500px){.set-grid{grid-template-columns:1fr}}
-</style>
-<div class="grid1"><div class="card glass">
+<div class="grid1"><div class="card">
   <h3>&#9881;&#65039; Pengaturan Demo</h3>
   <div class="set-grid">
     <div class="set-field"><label>Durasi sesi owner (menit)</label><input type="number" id="setOwnerSession"><small>10&ndash;1440 menit</small></div>
@@ -1843,7 +1832,7 @@ tr:hover{background:rgba(255,255,255,.02)}
     <span id="setStatus"></span>
   </div>
   <div class="set-info">&#128273; Kunci slot saat ini: <code id="keyPreview">-</code> &middot; Sesi owner aktif: <span id="ownerActiveInfo">-</span></div>
-  <div class="set-actions" style="margin-top:12px">
+  <div class="set-actions" style="margin-top:10px">
     <button id="revokeKeyBtn" class="revoke-btn">&#128260; Ganti Kunci (Revoke)</button>
     <span class="revoke-hint">Kunci lama langsung mati &amp; kunci baru dikirim ke Telegram</span>
   </div>
@@ -1854,23 +1843,23 @@ tr:hover{background:rgba(255,255,255,.02)}
 </main>
 </div>
 <script>
-const palette=['#818CF8','#22C55E','#F472B6','#F59E0B','#22D3EE','#A855F7','#EF4444','#6366F1'];
-const chartDefaults={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#94a3b8',font:{size:11},padding:12,usePointStyle:true,pointStyleWidth:8}}}};
+const palette=['#58A6FF','#3FB950','#D29922','#F85149','#A371F7','#79C0FF','#D2A8FF','#7EE787'];
+const chartDefaults={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#8B949E',font:{family:'Inter',size:11},padding:12,usePointStyle:true,pointStyleWidth:8}}}};
 function makeDonut(data,el){
   const labels=Object.keys(data);const values=Object.values(data);
-  if(!labels.length){el.innerHTML='<div style="color:#475569;text-align:center;padding:40px">No data yet</div>';return;}
+  if(!labels.length){el.innerHTML='<div style="color:#484F58;text-align:center;padding:40px;font-size:.85em">No data yet</div>';return;}
   const bg=labels.map((_,i)=>palette[i%palette.length]);
-  const cfg={type:'doughnut',data:{labels,datasets:[{data:values,backgroundColor:bg,borderColor:'rgba(15,23,42,.8)',borderWidth:3,hoverOffset:8}]},options:{...chartDefaults,cutout:'65%',plugins:{...chartDefaults.plugins,tooltip:{backgroundColor:'rgba(30,41,59,.95)',titleColor:'#e2e8f0',bodyColor:'#94a3b8',borderColor:'rgba(129,140,248,.3)',borderWidth:1,cornerRadius:8,padding:12}}}};
+  const cfg={type:'doughnut',data:{labels,datasets:[{data:values,backgroundColor:bg,borderColor:'#161B22',borderWidth:3,hoverOffset:6}]},options:{...chartDefaults,cutout:'65%',plugins:{...chartDefaults.plugins,tooltip:{backgroundColor:'#1C2128',titleColor:'#E6EDF3',bodyColor:'#8B949E',borderColor:'#30363D',borderWidth:1,cornerRadius:6,padding:10}}}};
   if(el._chart)el._chart.destroy();el._chart=new Chart(el,cfg);
 }
 function makeBar(labels,values,el){
-  if(!labels.length){el.innerHTML='<div style="color:#475569;text-align:center;padding:40px">No data yet</div>';return;}
-  const cfg={type:'bar',data:{labels,datasets:[{label:'Avg RT (s)',data:values,backgroundColor:palette.map(c=>c+'99'),borderColor:palette,borderWidth:2,borderRadius:6}]},options:{...chartDefaults,indexAxis:'y',plugins:{...chartDefaults.plugins,legend:{display:false}},scales:{x:{ticks:{color:'#94a3b8'},grid:{color:'rgba(148,163,184,.06)'}},y:{ticks:{color:'#cbd5e1'},grid:{display:false}}}}};
+  if(!labels.length){el.innerHTML='<div style="color:#484F58;text-align:center;padding:40px;font-size:.85em">No data yet</div>';return;}
+  const cfg={type:'bar',data:{labels,datasets:[{label:'Avg RT (s)',data:values,backgroundColor:palette.map(c=>c+'88'),borderColor:palette,borderWidth:1,borderRadius:4}]},options:{...chartDefaults,indexAxis:'y',plugins:{...chartDefaults.plugins,legend:{display:false}},scales:{x:{ticks:{color:'#8B949E'},grid:{color:'#21262D'}},y:{ticks:{color:'#C9D1D9'},grid:{display:false}}}}};
   if(el._chart)el._chart.destroy();el._chart=new Chart(el,cfg);
 }
 function makeTimeline(labels,values,el){
-  if(!labels.length){el.innerHTML='<div style="color:#475569;text-align:center;padding:40px">No data yet</div>';return;}
-  const cfg={type:'line',data:{labels,datasets:[{label:'Requests',data:values,borderColor:'#818CF8',backgroundColor:'rgba(129,140,248,.1)',fill:true,tension:.4,borderWidth:2,pointRadius:3,pointBackgroundColor:'#818CF8'}]},options:{...chartDefaults,plugins:{...chartDefaults.plugins,legend:{display:false}},scales:{x:{ticks:{color:'#94a3b8',maxRotation:0},grid:{color:'rgba(148,163,184,.06)'}},y:{ticks:{color:'#94a3b8',stepSize:1},grid:{color:'rgba(148,163,184,.06)'},beginAtZero:true}}}};
+  if(!labels.length){el.innerHTML='<div style="color:#484F58;text-align:center;padding:40px;font-size:.85em">No data yet</div>';return;}
+  const cfg={type:'line',data:{labels,datasets:[{label:'Requests',data:values,borderColor:'#58A6FF',backgroundColor:'rgba(56,139,255,.08)',fill:true,tension:.4,borderWidth:2,pointRadius:3,pointBackgroundColor:'#58A6FF'}]},options:{...chartDefaults,plugins:{...chartDefaults.plugins,legend:{display:false}},scales:{x:{ticks:{color:'#8B949E',maxRotation:0},grid:{color:'#21262D'}},y:{ticks:{color:'#8B949E',stepSize:1},grid:{color:'#21262D'},beginAtZero:true}}}};
   if(el._chart)el._chart.destroy();el._chart=new Chart(el,cfg);
 }
 let lastData=null;
@@ -1890,8 +1879,8 @@ function renderStats(d){
     makeTimeline(Object.keys(d.hourly_requests).map(k=>k.length>5?k.slice(6):k),Object.values(d.hourly_requests),document.getElementById('timelineChart'));
     makeBar(Object.keys(d.model_avg_rt),Object.values(d.model_avg_rt),document.getElementById('rtChart'));
   }
-  document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+esc(r.time)+'</td><td>'+esc(r.model)+'</td><td>'+(r.skill&&r.skill!=='-'?'<span class="badge badge-green">'+esc(r.skill)+'</span>':'<span style="color:#475569">-</span>')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.question)+'</td><td>'+esc(r.rt)+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">FAIL</span>')+'</td></tr>').join('');
-  document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+esc(r.time)+'</td><td class="err" style="font-size:.8em">'+esc(r.error)+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#475569">No errors</td></tr>';
+  document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+esc(r.time)+'</td><td>'+esc(r.model)+'</td><td>'+(r.skill&&r.skill!=='-'?'<span class="badge badge-green">'+esc(r.skill)+'</span>':'<span style="color:#484F58">-</span>')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.question)+'</td><td>'+esc(r.rt)+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">FAIL</span>')+'</td></tr>').join('');
+  document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+esc(r.time)+'</td><td class="err" style="font-size:.8em">'+esc(r.error)+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#484F58">No errors</td></tr>';
 }
 async function refresh(){
   try{
@@ -1944,7 +1933,7 @@ document.getElementById('revokeKeyBtn').addEventListener('click',async()=>{
   b.disabled=true;
   try{
     const r=await fetch('/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revoke_key:true})});
-    if(r.ok){st.textContent='🔑 Kunci baru dikirim ke Telegram';st.className='ok';loadSettings();}
+    if(r.ok){st.textContent='Kunci baru dikirim ke Telegram';st.className='ok';loadSettings();}
     else{st.textContent='Gagal revoke ('+r.status+')';st.className='err';}
   }catch(e){st.textContent='Gagal terhubung ke server';st.className='err';}
   b.disabled=false;
