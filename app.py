@@ -1755,8 +1755,8 @@ body{font-family:'Open Sans',system-ui,-apple-system,sans-serif;background:#0D11
 .stat-val.danger{color:#F85149}
 .stat-val.warning{color:#D29922}
 .stat-label{color:#8B949E;font-size:.78em;margin-top:6px;font-weight:500}
-.chart-container{position:relative;width:220px;height:220px;margin:0 auto}
-.chart-container.tall{width:100%;height:280px}
+.chart-container{position:relative;width:100%;aspect-ratio:1/1;margin:0 auto;max-height:280px}
+.chart-container.tall{width:100%;height:280px;aspect-ratio:auto;max-height:none}
 table{width:100%;border-collapse:collapse;font-size:.8em;font-variant-numeric:tabular-nums}
 th{text-align:left;color:#8B949E;padding:10px 10px;border-bottom:1px solid #21262D;font-weight:600;text-transform:uppercase;font-size:.72em;letter-spacing:.5px}
 td{padding:9px 10px;border-bottom:1px solid #21262D;color:#C9D1D9}
@@ -1793,6 +1793,7 @@ tr:hover{background:rgba(255,255,255,.02)}
   <div class="brand"><div class="logo">Y</div><div><h2>YUKI</h2><span>ADMIN PANEL</span></div></div>
   <nav class="nav">
     <button class="nav-item active" data-tab="stats">&#128202; <span>Statistik</span></button>
+    <button class="nav-item" data-tab="logs">&#128203; <span>Logs</span></button>
     <button class="nav-item" data-tab="demo">&#9881;&#65039; <span>Demo Chat</span></button>
   </nav>
   <div class="side-foot"><span id="uptime">-</span><a class="logout" href="#" onclick="fetch('/admin/logout',{method:'POST'}).then(()=>window.location='/admin');return false;" title="Keluar">&#10162;</a></div>
@@ -1815,6 +1816,10 @@ tr:hover{background:rgba(255,255,255,.02)}
   <div class="card"><h3>Requests (Last 12h)</h3><div class="chart-container tall"><canvas id="timelineChart"></canvas></div></div>
   <div class="card"><h3>Avg Response Time by Model</h3><div class="chart-container tall"><canvas id="rtChart"></canvas></div></div>
 </div>
+</div>
+</section>
+
+<section id="tab-logs" class="tab">
 <div class="grid1"><div class="card">
   <div class="logs-header"><h3>Logs</h3><div class="logs-tabs"><button class="logs-tab active" data-log="requests">Requests</button><button class="logs-tab" data-log="errors">Errors</button></div></div>
   <div id="logs-requests"><div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Model</th><th>Skill</th><th>RT</th><th>Status</th></tr></thead><tbody id="reqTable"></tbody></table></div></div>
@@ -1896,7 +1901,7 @@ async function refresh(){
 function switchTab(name){
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
   document.querySelectorAll('.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+name));
-  if(name==='stats'&&lastData)renderStats(lastData);
+  if((name==='stats'||name==='logs')&&lastData)renderStats(lastData);
 }
 const SET_FIELDS=[['owner_session_min','setOwnerSession'],['key_interval_min','setKeyInterval'],['limit_per_ip','setLimitIp'],['global_daily','setGlobalDaily']];
 const SET_RANGES={owner_session_min:[10,1440],key_interval_min:[15,1440],limit_per_ip:[1,20],global_daily:[10,200]};
@@ -2444,7 +2449,7 @@ body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backg
   function lockIP(){
     locked=true;
     input.disabled=true;send.disabled=true;
-    foot.innerHTML='<div class="done-card"><div class="big">Demo selesai! 🎉</div><small>Jatah 5 pesan kamu sudah habis.<br>Tertarik punya AI assistant seperti ini?</small><a href="https://github.com/yuki71-s" target="_blank" rel="noopener">'+ghBtnSvg()+'Hubungi Saya</a></div>';
+    foot.innerHTML='<div class="done-card"><div class="big">Demo selesai! 🎉</div><small>Jatah '+limit+' pesan kamu sudah habis.<br>Tertarik punya AI assistant seperti ini?</small><a href="https://github.com/yuki71-s" target="_blank" rel="noopener">'+ghBtnSvg()+'Hubungi Saya</a></div>';
   }
   function lockGlobal(){
     locked=true;
