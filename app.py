@@ -1721,7 +1721,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Open Sans',system-ui,-apple-system,sans-serif;background:#0D1117;color:#E6EDF3;min-height:100vh;overflow-x:hidden;font-variant-numeric:tabular-nums}
-.layout{display:flex;min-height:100vh}
+.layout{display:flex;height:100vh;overflow:hidden}
 .side{width:232px;flex-shrink:0;background:#161B22;border-right:1px solid #30363D;padding:24px 16px;display:flex;flex-direction:column;gap:20px;position:sticky;top:0;align-self:flex-start;min-height:100vh}
 .brand{display:flex;align-items:center;gap:12px;padding:0 6px}
 .brand .logo{width:38px;height:38px;border-radius:8px;background:#21262D;border:1px solid #30363D;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1em;color:#E6EDF3;flex-shrink:0}
