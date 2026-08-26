@@ -1716,214 +1716,154 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <title>YUKI Admin Panel</title>
 <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
-body{font-family:'Open Sans',sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Open Sans',sans-serif}
+body{background-color:#0d1117;color:#c9d1d9;display:flex;min-height:100vh}
+.sidebar{width:250px;background-color:#161b22;border-right:1px solid #30363d;padding:24px 16px;display:flex;flex-direction:column;justify-content:space-between;flex-shrink:0}
+.sidebar-brand{font-size:18px;font-weight:700;color:#fff;margin-bottom:32px;display:flex;align-items:center;gap:10px}
+.nav-menu{display:flex;flex-direction:column;gap:6px}
+.nav-link{display:block;padding:10px 14px;color:#8b949e;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;transition:background .2s,color .2s;cursor:pointer}
+.nav-link:hover{background-color:#21262d;color:#fff}
+.nav-link.active{background-color:rgba(56,139,253,.15);color:#58a6ff}
+.sidebar-footer{font-size:12px;color:#8b949e;padding-top:16px;border-top:1px solid #30363d;display:flex;justify-content:space-between;align-items:center}
+.main-content{flex:1;padding:32px;overflow-y:auto;height:100vh}
+.content-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.content-title{font-size:20px;font-weight:700;color:#fff}
+.badge-refresh{background-color:#21262d;border:1px solid #30363d;color:#8b949e;font-size:12px;padding:4px 12px;border-radius:20px;display:inline-flex;align-items:center;gap:6px}
+.card{background-color:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px;margin-bottom:24px}
+.card-header-title{font-size:12px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px}
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.metric-title{font-size:12px;color:#8b949e;font-weight:600}
+.metric-value{font-size:26px;font-weight:700;margin-top:6px}
+.text-online{color:#3fb950}.text-requests{color:#58a6ff}.text-response{color:#d29922}.text-errors{color:#f85149}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px}
+.form-group{display:flex;flex-direction:column}
+.form-group label{font-size:12px;color:#8b949e;margin-bottom:6px}
+.form-group input{background-color:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px 12px;color:#fff;font-size:14px;outline:none}
+.form-group input:focus{border-color:#58a6ff}
+.form-group .help-text{font-size:10px;color:#6e7681;margin-top:4px}
+.button-group{display:flex;gap:12px;align-items:center}
+.btn{padding:9px 16px;border-radius:6px;font-size:14px;font-weight:600;border:none;cursor:pointer;transition:opacity .2s}
+.btn:hover{opacity:.9}
+.btn-success{background-color:#238636;color:#fff}
+.btn-danger-outline{background-color:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.4);color:#f85149}
+.btn-disabled{opacity:.5;pointer-events:none}
 .tab-pane{display:none}.tab-pane.active{display:block}
-.card-hover{transition:border-color .15s}.card-hover:hover{border-color:#484f58}
-.pulse-dot{width:8px;height:8px;border-radius:50%;background:#3fb950;animation:pulse 2s infinite}
-@keyframes pulse{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px}
+.chart-box{position:relative;width:100%;aspect-ratio:1/1;max-height:260px;margin:0 auto}
+.chart-box.tall{aspect-ratio:auto;height:260px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:#8b949e;padding:8px 12px;border-bottom:1px solid #30363d;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.5px}
+td{padding:8px 12px;border-bottom:1px solid #30363d;color:#c9d1d9}
+tr:hover{background:rgba(255,255,255,.02)}
+.badge-green{background:rgba(63,185,80,.15);color:#3fb950;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.badge-red{background:rgba(248,81,73,.15);color:#f85149;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.modal-overlay{display:none;position:fixed;inset:0;background-color:rgba(0,0,0,.75);align-items:center;justify-content:center;z-index:1000}
+.modal-box{background-color:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px;max-width:420px;width:100%}
+.modal-title{font-size:18px;font-weight:700;color:#fff;margin-bottom:8px}
+.modal-desc{font-size:14px;color:#8b949e;margin-bottom:20px;line-height:1.5}
 .spinner{width:14px;height:14px;border:2px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:spin .8s linear infinite;display:none}
 @keyframes spin{to{transform:rotate(360deg)}}
-a{cursor:pointer}
+.logs-tab{display:inline-block;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;color:#8b949e;transition:all .15s}
+.logs-tab:hover{background:#21262d;color:#fff}
+.logs-tab.active{background:rgba(56,139,253,.15);color:#58a6ff}
 </style>
 </head>
-<body class="bg-[#0d1117] text-gray-200 min-h-screen">
+<body>
 
-<div class="flex min-h-screen">
-  <!-- SIDEBAR -->
-  <aside class="w-64 bg-[#161b22] border-r border-gray-800 flex flex-col justify-between p-4 flex-shrink-0 sticky top-0 self-start min-h-screen">
-    <div>
-      <div class="flex items-center gap-2 mb-8">
-        <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center font-bold text-white">Y</div>
-        <span class="font-bold text-lg text-white tracking-wide">YUKI ADMIN</span>
-      </div>
-      <nav class="space-y-1">
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-600/10 text-blue-400 font-semibold text-sm sidebar-link active" data-tab="stats">
-          <span>📊</span> Statistik
-        </a>
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white font-semibold text-sm transition sidebar-link" data-tab="logs">
-          <span>📋</span> Logs (Request &amp; Error)
-        </a>
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white font-semibold text-sm transition sidebar-link" data-tab="demo">
-          <span>💬</span> Demo Chat
-        </a>
-      </nav>
-    </div>
-    <div class="text-xs text-gray-500 pt-4 border-t border-gray-800 flex justify-between items-center">
-      <span>Uptime: <strong id="uptime-text" class="text-gray-300">-</strong></span>
-      <span class="pulse-dot"></span>
-    </div>
-  </aside>
+<aside class="sidebar">
+  <div>
+    <div class="sidebar-brand"><span>🤖</span> YUKI ADMIN</div>
+    <nav class="nav-menu">
+      <a class="nav-link active" data-tab="stats">📊 Statistik</a>
+      <a class="nav-link" data-tab="logs">📋 Logs (Request &amp; Error)</a>
+      <a class="nav-link" data-tab="demo">💬 Demo Chat</a>
+    </nav>
+  </div>
+  <div class="sidebar-footer">
+    <span>Uptime: <strong id="uptimeText" style="color:#c9d1d9">-</strong></span>
+    <span class="spinner" id="refreshSpinner"></span>
+  </div>
+</aside>
 
-  <!-- MAIN CONTENT -->
-  <main class="flex-1 p-8 overflow-y-auto" id="mainContent">
+<main class="main-content">
+  <div class="content-header">
+    <h1 class="content-title" id="pageTitle">Statistik</h1>
+    <span class="badge-refresh"><span class="spinner" id="refreshSpinner2"></span><span>🔄</span> <span id="refreshLabel">Auto-refresh: 10s</span></span>
+  </div>
 
-    <!-- HEADER -->
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-xl font-bold text-white" id="pageTitle">Statistik</h1>
-      <div class="flex items-center gap-3">
-        <span class="spinner" id="refreshSpinner"></span>
-        <span class="text-xs bg-gray-800 text-gray-400 px-3 py-1 rounded-full border border-gray-700 flex items-center gap-1.5">
-          <span>🔄</span> <span id="refreshLabel">Auto-refresh: 10s</span>
-        </span>
-      </div>
+  <!-- TAB: STATS -->
+  <section id="tab-stats" class="tab-pane active">
+    <div class="metrics-grid">
+      <div class="card" style="margin-bottom:0"><div class="metric-title">STATUS</div><div class="metric-value text-online" id="statusVal">-</div></div>
+      <div class="card" style="margin-bottom:0"><div class="metric-title">TOTAL REQUESTS</div><div class="metric-value text-requests" id="requestsVal">-</div></div>
+      <div class="card" style="margin-bottom:0"><div class="metric-title">AVG RESPONSE</div><div class="metric-value text-response" id="avgRtVal">-</div></div>
+      <div class="card" style="margin-bottom:0"><div class="metric-title">ERRORS</div><div class="metric-value" id="errorsVal">-</div></div>
     </div>
 
-    <!-- ============ TAB: STATS ============ -->
-    <section id="tab-stats" class="tab-pane active">
-      <!-- Stat Cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div class="card-hover bg-[#161b22] border border-gray-800 rounded-xl p-5">
-          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Status</p>
-          <p class="text-2xl font-bold text-white" id="statusVal">ONLINE</p>
-          <p class="text-xs text-gray-500 mt-1">server status</p>
-        </div>
-        <div class="card-hover bg-[#161b22] border border-gray-800 rounded-xl p-5">
-          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Requests</p>
-          <p class="text-2xl font-bold text-blue-400" id="requestsVal">-</p>
-          <p class="text-xs text-gray-500 mt-1">since server start</p>
-        </div>
-        <div class="card-hover bg-[#161b22] border border-gray-800 rounded-xl p-5">
-          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Avg Response</p>
-          <p class="text-2xl font-bold text-yellow-400" id="avgRtVal">-</p>
-          <p class="text-xs text-gray-500 mt-1">seconds per request</p>
-        </div>
-        <div class="card-hover bg-[#161b22] border border-gray-800 rounded-xl p-5">
-          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Errors</p>
-          <p class="text-2xl font-bold" id="errorsVal">-</p>
-          <p class="text-xs text-gray-500 mt-1" id="errorRateVal">-</p>
-        </div>
-      </div>
-
-      <!-- Charts Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        <div class="card-hover bg-[#161b22] border border-gray-800 rounded-xl p-5">
-          <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-3">Model Usage</h3>
-          <div class="chart-container" style="position:relative;width:100%;aspect-ratio:1/1;max-height:260px"><canvas id="modelChart"></canvas></div>
-        </div>
-        <div class="card-hover bg-[#161b22] border border-gray-800 rounded-xl p-5">
-          <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-3">Skill Usage</h3>
-          <div class="chart-container" style="position:relative;width:100%;aspect-ratio:1/1;max-height:260px"><canvas id="skillChart"></canvas></div>
-        </div>
-        <div class="card-hover bg-[#161b22] border border-gray-800 rounded-xl p-5">
-          <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-3">Search Usage</h3>
-          <div class="chart-container" style="position:relative;width:100%;aspect-ratio:1/1;max-height:260px"><canvas id="searchChart"></canvas></div>
-        </div>
-      </div>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        <div class="card-hover bg-[#161b22] border border-gray-800 rounded-xl p-5">
-          <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-3">Requests (Last 12h)</h3>
-          <div style="position:relative;width:100%;height:260px"><canvas id="timelineChart"></canvas></div>
-        </div>
-        <div class="card-hover bg-[#161b22] border border-gray-800 rounded-xl p-5">
-          <h3 class="text-xs text-gray-500 uppercase tracking-wider mb-3">Avg Response Time by Model</h3>
-          <div style="position:relative;width:100%;height:260px"><canvas id="rtChart"></canvas></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ TAB: LOGS ============ -->
-    <section id="tab-logs" class="tab-pane">
-      <div class="bg-[#161b22] border border-gray-800 rounded-xl p-5">
-        <div class="flex gap-2 mb-4">
-          <a class="px-4 py-1.5 rounded-lg text-sm font-semibold log-tab active bg-blue-600/10 text-blue-400" data-log="requests">Requests</a>
-          <a class="px-4 py-1.5 rounded-lg text-sm font-semibold log-tab text-gray-400 hover:bg-gray-800" data-log="errors">Errors</a>
-        </div>
-        <div id="logs-requests">
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="border-b border-gray-800">
-                  <th class="text-left py-2 px-4 text-gray-500 font-semibold uppercase text-[11px] tracking-wider">Time</th>
-                  <th class="text-left py-2 px-4 text-gray-500 font-semibold uppercase text-[11px] tracking-wider">Model</th>
-                  <th class="text-left py-2 px-4 text-gray-500 font-semibold uppercase text-[11px] tracking-wider">Skill</th>
-                  <th class="text-left py-2 px-4 text-gray-500 font-semibold uppercase text-[11px] tracking-wider">RT</th>
-                  <th class="text-left py-2 px-4 text-gray-500 font-semibold uppercase text-[11px] tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody id="reqTable"></tbody>
-            </table>
-          </div>
-        </div>
-        <div id="logs-errors" style="display:none">
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="border-b border-gray-800">
-                  <th class="text-left py-2 px-4 text-gray-500 font-semibold uppercase text-[11px] tracking-wider">Time</th>
-                  <th class="text-left py-2 px-4 text-gray-500 font-semibold uppercase text-[11px] tracking-wider">Error</th>
-                </tr>
-              </thead>
-              <tbody id="errTable"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ TAB: DEMO CHAT ============ -->
-    <section id="tab-demo" class="tab-pane">
-      <div class="bg-[#161b22] border border-gray-800 rounded-xl p-5 max-w-5xl">
-        <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2">
-          ⚙️ Pengaturan Demo
-        </h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <div>
-            <label class="block text-xs text-gray-400 mb-1">Durasi sesi owner (menit)</label>
-            <input type="number" id="setOwnerSession" class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-            <span class="text-[10px] text-gray-500 mt-1 block">10&ndash;1440 menit</span>
-          </div>
-          <div>
-            <label class="block text-xs text-gray-400 mb-1">Interval kunci Telegram (menit)</label>
-            <input type="number" id="setKeyInterval" class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-            <span class="text-[10px] text-gray-500 mt-1 block">15&ndash;1440 menit</span>
-          </div>
-          <div>
-            <label class="block text-xs text-gray-400 mb-1">Limit chat per IP</label>
-            <input type="number" id="setLimitIp" class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-            <span class="text-[10px] text-gray-500 mt-1 block">1&ndash;20 pesan / 24 jam</span>
-          </div>
-          <div>
-            <label class="block text-xs text-gray-400 mb-1">Kuota harian global</label>
-            <input type="number" id="setGlobalDaily" class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-            <span class="text-[10px] text-gray-500 mt-1 block">10&ndash;200 chat / hari</span>
-          </div>
-        </div>
-        <div class="flex items-center gap-3 pt-2">
-          <button id="saveSetBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm px-5 py-2 rounded-lg transition">Simpan Pengaturan</button>
-          <span id="setStatus" class="text-sm"></span>
-        </div>
-        <div class="mt-4 pt-4 border-t border-gray-800 text-xs text-gray-500">
-          &#128273; Kunci slot saat ini: <code id="keyPreview" class="text-blue-400 bg-blue-900/20 px-1.5 py-0.5 rounded">-</code>
-          &middot; Sesi owner aktif: <span id="ownerActiveInfo" class="text-gray-300">-</span>
-        </div>
-        <div class="flex items-center gap-3 mt-4">
-          <button id="revokeKeyBtn" class="bg-red-600/20 border border-red-500/40 text-red-400 hover:bg-red-600 hover:text-white font-semibold text-sm px-4 py-2 rounded-lg transition">
-            🔑 Ganti Kunci (Revoke)
-          </button>
-          <span class="text-[11px] text-gray-500">Kunci lama langsung mati &amp; kunci baru dikirim ke Telegram</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- FOOTER REFRESH -->
-    <div class="mt-8 text-center text-[11px] text-gray-600 flex items-center justify-center gap-2">
-      <span class="spinner" id="refreshSpinner2"></span>
-      <span>Auto-refresh: 10s &middot; yuki-ai.tech</span>
+    <div class="chart-grid">
+      <div class="card" style="margin-bottom:0"><div class="card-header-title">Model Usage</div><div class="chart-box"><canvas id="modelChart"></canvas></div></div>
+      <div class="card" style="margin-bottom:0"><div class="card-header-title">Skill Usage</div><div class="chart-box"><canvas id="skillChart"></canvas></div></div>
+      <div class="card" style="margin-bottom:0"><div class="card-header-title">Search Usage</div><div class="chart-box"><canvas id="searchChart"></canvas></div></div>
     </div>
-  </main>
-</div>
+    <div class="chart-grid" style="grid-template-columns:repeat(auto-fit,minmax(350px,1fr))">
+      <div class="card" style="margin-bottom:0"><div class="card-header-title">Requests (Last 12h)</div><div class="chart-box tall"><canvas id="timelineChart"></canvas></div></div>
+      <div class="card" style="margin-bottom:0"><div class="card-header-title">Avg Response Time by Model</div><div class="chart-box tall"><canvas id="rtChart"></canvas></div></div>
+    </div>
+  </section>
+
+  <!-- TAB: LOGS -->
+  <section id="tab-logs" class="tab-pane">
+    <div class="card">
+      <div class="card-header-title" style="margin-bottom:12px">📋 Activity Logs</div>
+      <div style="display:flex;gap:4px;margin-bottom:14px">
+        <span class="logs-tab active" data-log="requests">Requests</span>
+        <span class="logs-tab" data-log="errors">Errors</span>
+      </div>
+      <div id="logs-requests" style="overflow-x:auto">
+        <table><thead><tr><th>Time</th><th>Model</th><th>Skill</th><th>RT</th><th>Status</th></tr></thead><tbody id="reqTable"></tbody></table>
+      </div>
+      <div id="logs-errors" style="display:none;overflow-x:auto">
+        <table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody id="errTable"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB: DEMO CHAT -->
+  <section id="tab-demo" class="tab-pane">
+    <div class="card" style="max-width:860px">
+      <div class="card-header-title">⚙️ Pengaturan Demo</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Durasi sesi owner (menit)</label><input type="number" id="setOwnerSession"><span class="help-text">10&ndash;1440 menit</span></div>
+        <div class="form-group"><label>Interval kunci Telegram (menit)</label><input type="number" id="setKeyInterval"><span class="help-text">15&ndash;1440 menit</span></div>
+        <div class="form-group"><label>Limit chat per IP</label><input type="number" id="setLimitIp"><span class="help-text">1&ndash;20 pesan / 24 jam</span></div>
+        <div class="form-group"><label>Kuota harian global</label><input type="number" id="setGlobalDaily"><span class="help-text">10&ndash;200 chat / hari</span></div>
+      </div>
+      <div class="button-group">
+        <button class="btn btn-success" id="saveSetBtn">Simpan Pengaturan</button>
+        <span id="setStatus" style="font-size:13px;color:#8b949e"></span>
+      </div>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #30363d;font-size:12px;color:#8b949e">
+        &#128273; Kunci slot saat ini: <code id="keyPreview" style="color:#58a6ff;background:rgba(56,139,255,.1);padding:1px 6px;border-radius:4px">-</code>
+        &middot; Sesi owner aktif: <span id="ownerActiveInfo" style="color:#c9d1d9">-</span>
+      </div>
+      <div class="button-group" style="margin-top:12px">
+        <button class="btn btn-danger-outline" id="revokeKeyBtn">🔑 Ganti Kunci (Revoke)</button>
+        <span style="font-size:11px;color:#6e7681">Kunci lama langsung mati &amp; kunci baru dikirim ke Telegram</span>
+      </div>
+    </div>
+  </section>
+</main>
 
 <!-- MODAL REVOKE -->
-<div id="modal-revoke" class="fixed inset-0 bg-black/70 hidden items-center justify-center p-4 z-50">
-  <div class="bg-[#161b22] border border-gray-800 rounded-xl p-6 max-w-md w-full shadow-2xl">
-    <h3 class="text-lg font-bold text-white mb-2">Konfirmasi Revoke Kunci</h3>
-    <p class="text-sm text-gray-400 mb-6">Kunci lama akan langsung mati dan kunci baru akan dikirimkan ke Telegram. Apakah Anda yakin?</p>
-    <div class="flex justify-end gap-3">
-      <button id="modalCancelBtn" class="px-4 py-2 rounded-lg bg-gray-800 text-gray-300 text-sm hover:bg-gray-700">Batal</button>
-      <button id="modalConfirmBtn" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-500">Ya, Revoke</button>
+<div id="revokeModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">Konfirmasi Revoke Kunci</div>
+    <div class="modal-desc">Kunci lama akan langsung mati & kunci baru akan dikirimkan ke Telegram. Apakah Anda yakin ingin me-revoke kunci?</div>
+    <div class="button-group" style="justify-content:flex-end">
+      <button class="btn" style="background-color:#21262d;color:#c9d1d9" id="modalCancelBtn">Batal</button>
+      <button class="btn" style="background-color:#da3633;color:#fff" id="modalConfirmBtn">Ya, Revoke</button>
     </div>
   </div>
 </div>
@@ -1931,7 +1871,6 @@ a{cursor:pointer}
 <script>
 const palette=['#58A6FF','#3FB950','#D29922','#F85149','#A371F7','#79C0FF','#D2A8FF','#7EE787'];
 const chartDefaults={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#C9D1D9',font:{family:'Open Sans',size:12,weight:'500'},padding:16,usePointStyle:true,pointStyleWidth:8}}}};
-
 function makeDonut(data,el){
   const labels=Object.keys(data);const values=Object.values(data);
   if(!labels.length){el.innerHTML='<div style="color:#484F58;text-align:center;padding:40px;font-size:.85em">No data yet</div>';return;}
@@ -1952,17 +1891,14 @@ function makeTimeline(labels,values,el){
 
 let lastData=null;
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function badge(ok){return ok?'<span class="bg-emerald-900/40 text-emerald-400 border border-emerald-700/50 px-2 py-0.5 rounded text-[11px] font-semibold">OK</span>':'<span class="bg-red-900/40 text-red-400 border border-red-700/50 px-2 py-0.5 rounded text-[11px] font-semibold">FAIL</span>';}
-
+function badge(ok){return ok?'<span class="badge-green">OK</span>':'<span class="badge-red">FAIL</span>';}
 function renderStats(d){
-  document.getElementById('uptime-text').textContent=d.uptime;
+  document.getElementById('uptimeText').textContent=d.uptime;
   document.getElementById('requestsVal').textContent=d.total_requests;
   document.getElementById('avgRtVal').textContent=d.overall_avg_rt+'s';
   const errEl=document.getElementById('errorsVal');
   errEl.textContent=d.total_errors;
-  errEl.className='text-2xl font-bold '+(d.total_errors>0?'text-red-400':'text-emerald-400');
-  const rate=d.total_requests>0?((d.total_errors/d.total_requests)*100).toFixed(1)+'% error rate':'0%';
-  document.getElementById('errorRateVal').textContent=rate;
+  errEl.className='metric-value '+(d.total_errors>0?'text-errors':'text-online');
 
   if(document.getElementById('tab-stats').classList.contains('active')){
     makeDonut(d.model_usage,document.getElementById('modelChart'));
@@ -1972,8 +1908,8 @@ function renderStats(d){
     makeBar(Object.keys(d.model_avg_rt),Object.values(d.model_avg_rt),document.getElementById('rtChart'));
   }
 
-  document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr class="border-b border-gray-800 last:border-0"><td class="py-2 px-4 text-gray-400 text-xs">'+esc(r.time)+'</td><td class="py-2 px-4 text-sm">'+esc(r.model)+'</td><td class="py-2 px-4">'+(r.skill&&r.skill!=='-'?'<span class="bg-emerald-900/40 text-emerald-400 border border-emerald-700/50 px-1.5 py-0.5 rounded text-[11px] font-semibold">'+esc(r.skill)+'</span>':'<span class="text-gray-500">-</span>')+'</td><td class="py-2 px-4 text-gray-400 text-xs">'+esc(r.rt)+'</td><td class="py-2 px-4">'+badge(r.ok)+'</td></tr>').join('');
-  document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr class="border-b border-gray-800 last:border-0"><td class="py-2 px-4 text-gray-400 text-xs whitespace-nowrap">'+esc(r.time)+'</td><td class="py-2 px-4 text-red-400 text-xs">'+badge(false)+' '+esc(r.error)+'</td></tr>').join('')||'<tr><td colspan="2" class="text-center py-6 text-gray-500 text-xs">No errors</td></tr>';
+  document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td style="white-space:nowrap">'+esc(r.time)+'</td><td>'+esc(r.model)+'</td><td>'+(r.skill&&r.skill!=='-'?'<span class="badge-green">'+esc(r.skill)+'</span>':'<span style="color:#6e7681">-</span>')+'</td><td>'+esc(r.rt)+'</td><td>'+badge(r.ok)+'</td></tr>').join('');
+  document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+esc(r.time)+'</td><td><span class="badge-red">ERROR</span> '+esc(r.error)+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#6e7681;text-align:center;padding:16px">No errors</td></tr>';
 }
 
 let refreshing=false;
@@ -1985,9 +1921,9 @@ async function refresh(){
   try{
     const r=await fetch('/stats');const d=await r.json();
     lastData=d;renderStats(d);
-    document.getElementById('statusVal').textContent='ONLINE';document.getElementById('statusVal').className='text-2xl font-bold text-emerald-400';
+    document.getElementById('statusVal').textContent='ONLINE';document.getElementById('statusVal').className='metric-value text-online';
   }catch(e){
-    document.getElementById('statusVal').textContent='OFFLINE';document.getElementById('statusVal').className='text-2xl font-bold text-red-400';
+    document.getElementById('statusVal').textContent='OFFLINE';document.getElementById('statusVal').className='metric-value text-errors';
   }
   document.getElementById('refreshSpinner').style.display='none';
   document.getElementById('refreshSpinner2').style.display='none';
@@ -1995,24 +1931,25 @@ async function refresh(){
 }
 
 // Tab switching
-document.querySelectorAll('.sidebar-link').forEach(link=>{
+document.querySelectorAll('.nav-link').forEach(link=>{
   link.addEventListener('click',function(){
-    document.querySelectorAll('.sidebar-link').forEach(l=>{l.classList.remove('bg-blue-600/10','text-blue-400');l.classList.add('text-gray-400');});
-    this.classList.add('bg-blue-600/10','text-blue-400');this.classList.remove('text-gray-400');
+    document.querySelectorAll('.nav-link').forEach(l=>{l.classList.remove('active');});
+    this.classList.add('active');
     const tab=this.dataset.tab;
     document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
     document.getElementById('tab-'+tab).classList.add('active');
-    document.getElementById('pageTitle').textContent={stats:'Statistik',logs:'Logs (Request & Error)',demo:'Demo Chat'}[tab];
-    document.getElementById('mainContent').scrollTop=0;
+    document.querySelector('.main-content').scrollTop=0;
+    const titles={stats:'Statistik',logs:'Logs (Request & Error)',demo:'Demo Chat'};
+    document.getElementById('pageTitle').textContent=titles[tab];
     if((tab==='stats'||tab==='logs')&&lastData)renderStats(lastData);
   });
 });
 
 // Logs tabs
-document.querySelectorAll('.log-tab').forEach(tab=>{
+document.querySelectorAll('.logs-tab').forEach(tab=>{
   tab.addEventListener('click',function(){
-    document.querySelectorAll('.log-tab').forEach(t=>{t.classList.remove('bg-blue-600/10','text-blue-400');t.classList.add('text-gray-400');});
-    this.classList.add('bg-blue-600/10','text-blue-400');this.classList.remove('text-gray-400');
+    document.querySelectorAll('.logs-tab').forEach(t=>{t.classList.remove('active');});
+    this.classList.add('active');
     const isReq=this.dataset.log==='requests';
     document.getElementById('logs-requests').style.display=isReq?'block':'none';
     document.getElementById('logs-errors').style.display=isReq?'none':'block';
@@ -2037,42 +1974,40 @@ document.getElementById('saveSetBtn').addEventListener('click',async()=>{
   const payload={};
   for(const [k,id] of SET_FIELDS){
     const v=parseInt(document.getElementById(id).value,10);
-    if(isNaN(v)){st.textContent='Isi semua angka dengan benar';st.className='text-sm text-red-400';return;}
+    if(isNaN(v)){st.textContent='Isi semua angka dengan benar';st.style.color='#f85149';return;}
     const lo=SET_RANGES[k][0],hi=SET_RANGES[k][1];
-    if(v<lo||v>hi){st.textContent=k+': harus '+lo+'\u2013'+hi;st.className='text-sm text-red-400';return;}
+    if(v<lo||v>hi){st.textContent=k+': harus '+lo+'\u2013'+hi;st.style.color='#f85149';return;}
     payload[k]=v;
   }
-  btn.disabled=true;st.textContent='Menyimpan...';st.className='text-sm text-gray-400';
+  btn.disabled=true;btn.classList.add('btn-disabled');st.textContent='Menyimpan...';st.style.color='#8b949e';
   try{
     const r=await fetch('/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const d=await r.json();
-    if(r.ok){st.textContent='\u2705 Tersimpan & langsung aktif';st.className='text-sm text-emerald-400';loadSettings();}
-    else{const rng=d.error==='out_of_range'?('harus '+d.min+'\u2013'+d.max):d.error;st.textContent=(d.field?d.field+': ':'')+rng;st.className='text-sm text-red-400';}
-  }catch(e){st.textContent='Gagal terhubung ke server';st.className='text-sm text-red-400';}
-  btn.disabled=false;
+    if(r.ok){st.textContent='Tersimpan & langsung aktif';st.style.color='#3fb950';loadSettings();}
+    else{st.textContent='Gagal: '+(d.error||'unknown');st.style.color='#f85149';}
+  }catch(e){st.textContent='Gagal terhubung ke server';st.style.color='#f85149';}
+  btn.disabled=false;btn.classList.remove('btn-disabled');
 });
 
-// Modal Revoke
-const modalOverlay=document.getElementById('modal-revoke');
+// Modal revoke
+const modalOverlay=document.getElementById('revokeModal');
 const modalCancelBtn=document.getElementById('modalCancelBtn');
 const modalConfirmBtn=document.getElementById('modalConfirmBtn');
-function showModal(){modalOverlay.classList.remove('hidden');modalOverlay.classList.add('flex');}
-function hideModal(){modalOverlay.classList.add('hidden');modalOverlay.classList.remove('flex');}
-modalCancelBtn.addEventListener('click',hideModal);
-modalOverlay.addEventListener('click',function(e){if(e.target===this)hideModal();});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!modalOverlay.classList.contains('hidden'))hideModal();});
-
-document.getElementById('revokeKeyBtn').addEventListener('click',showModal);
+function toggleModal(show){modalOverlay.style.display=show?'flex':'none';}
+modalCancelBtn.addEventListener('click',()=>toggleModal(false));
+modalOverlay.addEventListener('click',function(e){if(e.target===this)toggleModal(false);});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&modalOverlay.style.display==='flex')toggleModal(false);});
+document.getElementById('revokeKeyBtn').addEventListener('click',()=>toggleModal(true));
 modalConfirmBtn.addEventListener('click',async()=>{
-  hideModal();
-  const st=document.getElementById('setStatus'),b=document.getElementById('revokeKeyBtn');
-  b.disabled=true;
+  toggleModal(false);
+  const st=document.getElementById('setStatus');const btn=document.getElementById('revokeKeyBtn');
+  btn.disabled=true;btn.classList.add('btn-disabled');
   try{
     const r=await fetch('/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revoke_key:true})});
-    if(r.ok){st.textContent='Kunci baru dikirim ke Telegram';st.className='text-sm text-emerald-400';loadSettings();}
-    else{st.textContent='Gagal revoke ('+r.status+')';st.className='text-sm text-red-400';}
-  }catch(e){st.textContent='Gagal terhubung ke server';st.className='text-sm text-red-400';}
-  b.disabled=false;
+    if(r.ok){st.textContent='Kunci baru dikirim ke Telegram';st.style.color='#3fb950';loadSettings();}
+    else{st.textContent='Gagal revoke ('+r.status+')';st.style.color='#f85149';}
+  }catch(e){st.textContent='Gagal terhubung ke server';st.style.color='#f85149';}
+  btn.disabled=false;btn.classList.remove('btn-disabled');
 });
 
 loadSettings();
