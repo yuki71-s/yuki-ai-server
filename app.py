@@ -1715,14 +1715,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <title>Yuki Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0D1117;color:#E6EDF3;min-height:100vh;overflow-x:hidden;font-variant-numeric:tabular-nums}
+body{font-family:'Open Sans',system-ui,-apple-system,sans-serif;background:#0D1117;color:#E6EDF3;min-height:100vh;overflow-x:hidden;font-variant-numeric:tabular-nums}
 .layout{display:flex;min-height:100vh}
-.side{width:280px;flex-shrink:0;background:#161B22;border-right:1px solid #21262D;padding:24px 16px;display:flex;flex-direction:column;gap:16px;position:sticky;top:0;height:100vh;overflow:hidden}
+.side{width:232px;flex-shrink:0;background:#161B22;border-right:1px solid #21262D;padding:24px 16px;display:flex;flex-direction:column;gap:20px;position:sticky;top:0;height:100vh}
 .brand{display:flex;align-items:center;gap:12px;padding:0 6px}
 .brand .logo{width:38px;height:38px;border-radius:8px;background:#21262D;border:1px solid #30363D;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1em;color:#E6EDF3;flex-shrink:0}
 .brand h2{margin:0;font-size:1em;color:#E6EDF3;font-weight:600;letter-spacing:.02em}
@@ -1731,23 +1731,15 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0D1117;c
 .nav-item{display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:none;color:#8B949E;padding:10px 12px;border-radius:6px;font-family:inherit;font-size:.88em;font-weight:500;text-align:left;cursor:pointer;transition:background .12s,color .12s}
 .nav-item:hover{background:rgba(255,255,255,.04);color:#E6EDF3}
 .nav-item.active{background:rgba(56,139,255,.1);color:#58A6FF}
-.side-foot{padding:0 6px;color:#484F58;font-size:.75em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.side-foot{margin-top:auto;padding:0 6px;color:#484F58;font-size:.75em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .side-foot .logout{margin-left:auto;color:#484F58;text-decoration:none;font-size:1.2em;line-height:1;transition:color .12s}
 .side-foot .logout:hover{color:#F85149}
-.logs-section{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
-.logs-section h3{color:#8B949E;font-size:.72em;text-transform:uppercase;letter-spacing:1px;font-weight:600;padding:0 6px;margin-bottom:8px}
-.logs-tabs{display:flex;gap:2px;padding:0 6px;margin-bottom:8px}
-.logs-tab{flex:1;background:transparent;border:none;color:#8B949E;padding:6px 8px;border-radius:5px;font-family:inherit;font-size:.72em;font-weight:600;cursor:pointer;transition:background .12s,color .12s;text-align:center}
-.logs-tab:hover{background:rgba(255,255,255,.04);color:#E6EDF3}
+.logs-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.logs-header h3{margin-bottom:0}
+.logs-tabs{display:flex;gap:4px}
+.logs-tab{background:transparent;border:none;color:#8B949E;padding:5px 12px;border-radius:5px;font-family:inherit;font-size:.75em;font-weight:600;cursor:pointer;transition:all .12s}
+.logs-tab:hover{color:#E6EDF3}
 .logs-tab.active{background:rgba(56,139,255,.1);color:#58A6FF}
-.logs-content{flex:1;overflow-y:auto;padding:0 6px;scrollbar-width:thin;scrollbar-color:rgba(139,148,158,.2) transparent}
-.logs-content::-webkit-scrollbar{width:4px}
-.logs-content::-webkit-scrollbar-thumb{background:rgba(139,148,158,.2);border-radius:4px}
-.logs-content table{width:100%;border-collapse:collapse;font-size:.7em}
-.logs-content th{text-align:left;color:#8B949E;padding:6px 4px;border-bottom:1px solid #21262D;font-weight:600;text-transform:uppercase;font-size:.9em;letter-spacing:.5px;position:sticky;top:0;background:#161B22}
-.logs-content td{padding:5px 4px;border-bottom:1px solid #21262D;color:#C9D1D9;white-space:nowrap}
-.logs-content tr:hover{background:rgba(255,255,255,.02)}
-.logs-empty{color:#484F58;text-align:center;padding:20px 0;font-size:.8em}
 .content{flex:1;padding:24px 28px;max-width:1280px;margin:0 auto;width:100%;min-width:0}
 .tab{display:none}.tab.active{display:block}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
@@ -1763,8 +1755,8 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0D1117;c
 .stat-val.danger{color:#F85149}
 .stat-val.warning{color:#D29922}
 .stat-label{color:#8B949E;font-size:.78em;margin-top:6px;font-weight:500}
-.chart-container{position:relative;height:220px;max-width:220px;margin:0 auto;aspect-ratio:1}
-.chart-container.tall{height:280px;max-width:100%;aspect-ratio:auto}
+.chart-container{position:relative;width:220px;height:220px;margin:0 auto}
+.chart-container.tall{width:100%;height:280px}
 table{width:100%;border-collapse:collapse;font-size:.8em;font-variant-numeric:tabular-nums}
 th{text-align:left;color:#8B949E;padding:10px 10px;border-bottom:1px solid #21262D;font-weight:600;text-transform:uppercase;font-size:.72em;letter-spacing:.5px}
 td{padding:9px 10px;border-bottom:1px solid #21262D;color:#C9D1D9}
@@ -1791,7 +1783,7 @@ tr:hover{background:rgba(255,255,255,.02)}
 .revoke-btn:hover{background:rgba(248,81,73,.1)}
 .revoke-btn:disabled{opacity:.5;cursor:not-allowed}
 .revoke-hint{color:#484F58;font-size:.72em}
-@media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.layout{flex-direction:column}.side{position:static;width:100%;height:auto;flex-direction:row;align-items:center;padding:10px 16px;gap:12px;border-right:none;border-bottom:1px solid #21262D;overflow:visible}.brand>div:last-child span{display:none}.nav{flex-direction:row;flex:1}.nav-item{width:auto;padding:8px 12px}.logs-section{display:none}.side-foot{margin:0}.set-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.layout{flex-direction:column}.side{position:static;width:100%;height:auto;flex-direction:row;align-items:center;padding:10px 16px;gap:12px;border-right:none;border-bottom:1px solid #21262D}.brand>div:last-child span{display:none}.nav{flex-direction:row;flex:1}.nav-item{width:auto;padding:8px 12px}.side-foot{margin:0}.set-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:500px){.grid4{grid-template-columns:1fr}.content{padding:14px 10px}.set-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -1803,19 +1795,6 @@ tr:hover{background:rgba(255,255,255,.02)}
     <button class="nav-item active" data-tab="stats">&#128202; <span>Statistik</span></button>
     <button class="nav-item" data-tab="demo">&#9881;&#65039; <span>Demo Chat</span></button>
   </nav>
-  <div class="logs-section">
-    <h3>Logs</h3>
-    <div class="logs-tabs">
-      <button class="logs-tab active" data-log="requests">Requests</button>
-      <button class="logs-tab" data-log="errors">Errors</button>
-    </div>
-    <div class="logs-content" id="logsRequests">
-      <table><thead><tr><th>Time</th><th>Model</th><th>Skill</th><th>RT</th><th>St</th></tr></thead><tbody id="logReqBody"></tbody></table>
-    </div>
-    <div class="logs-content" id="logsErrors" style="display:none">
-      <table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody id="logErrBody"></tbody></table>
-    </div>
-  </div>
   <div class="side-foot"><span id="uptime">-</span><a class="logout" href="#" onclick="fetch('/admin/logout',{method:'POST'}).then(()=>window.location='/admin');return false;" title="Keluar">&#10162;</a></div>
 </aside>
 <main class="content">
@@ -1836,6 +1815,11 @@ tr:hover{background:rgba(255,255,255,.02)}
   <div class="card"><h3>Requests (Last 12h)</h3><div class="chart-container tall"><canvas id="timelineChart"></canvas></div></div>
   <div class="card"><h3>Avg Response Time by Model</h3><div class="chart-container tall"><canvas id="rtChart"></canvas></div></div>
 </div>
+<div class="grid1"><div class="card">
+  <div class="logs-header"><h3>Logs</h3><div class="logs-tabs"><button class="logs-tab active" data-log="requests">Requests</button><button class="logs-tab" data-log="errors">Errors</button></div></div>
+  <div id="logs-requests"><div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Model</th><th>Skill</th><th>RT</th><th>Status</th></tr></thead><tbody id="reqTable"></tbody></table></div></div>
+  <div id="logs-errors" style="display:none"><div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody id="errTable"></tbody></table></div></div>
+</div></div>
 </section>
 
 <section id="tab-demo" class="tab">
@@ -1864,7 +1848,7 @@ tr:hover{background:rgba(255,255,255,.02)}
 </div>
 <script>
 const palette=['#58A6FF','#3FB950','#D29922','#F85149','#A371F7','#79C0FF','#D2A8FF','#7EE787'];
-const chartDefaults={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#C9D1D9',font:{family:'Inter',size:12,weight:'500'},padding:16,usePointStyle:true,pointStyleWidth:8}}}};
+const chartDefaults={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#C9D1D9',font:{family:'Open Sans',size:12,weight:'500'},padding:16,usePointStyle:true,pointStyleWidth:8}}}};
 function makeDonut(data,el){
   const labels=Object.keys(data);const values=Object.values(data);
   if(!labels.length){el.innerHTML='<div style="color:#484F58;text-align:center;padding:40px;font-size:.85em">No data yet</div>';return;}
@@ -1899,8 +1883,8 @@ function renderStats(d){
     makeTimeline(Object.keys(d.hourly_requests).map(k=>k.length>5?k.slice(6):k),Object.values(d.hourly_requests),document.getElementById('timelineChart'));
     makeBar(Object.keys(d.model_avg_rt),Object.values(d.model_avg_rt),document.getElementById('rtChart'));
   }
-  document.getElementById('logReqBody').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+esc(r.time)+'</td><td>'+esc(r.model)+'</td><td>'+(r.skill&&r.skill!=='-'?'<span class="badge badge-green">'+esc(r.skill)+'</span>':'<span style="color:#484F58">-</span>')+'</td><td>'+esc(r.rt)+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">ERR</span>')+'</td></tr>').join('');
-  document.getElementById('logErrBody').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+esc(r.time)+'</td><td class="err">'+esc(r.error)+'</td></tr>').join('')||'<tr><td colspan="2" class="logs-empty">No errors</td></tr>';
+  document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+esc(r.time)+'</td><td>'+esc(r.model)+'</td><td>'+(r.skill&&r.skill!=='-'?'<span class="badge badge-green">'+esc(r.skill)+'</span>':'<span style="color:#484F58">-</span>')+'</td><td>'+esc(r.rt)+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">FAIL</span>')+'</td></tr>').join('');
+  document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+esc(r.time)+'</td><td class="err">'+esc(r.error)+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#484F58;text-align:center;padding:16px">No errors</td></tr>';
 }
 async function refresh(){
   try{
@@ -1950,8 +1934,8 @@ document.querySelectorAll('.logs-tab').forEach(b=>b.addEventListener('click',()=
   document.querySelectorAll('.logs-tab').forEach(t=>t.classList.remove('active'));
   b.classList.add('active');
   const isReq=b.dataset.log==='requests';
-  document.getElementById('logsRequests').style.display=isReq?'block':'none';
-  document.getElementById('logsErrors').style.display=isReq?'none':'block';
+  document.getElementById('logs-requests').style.display=isReq?'block':'none';
+  document.getElementById('logs-errors').style.display=isReq?'none':'block';
 }));
 loadSettings();
 document.getElementById('revokeKeyBtn').addEventListener('click',async()=>{
