@@ -1721,8 +1721,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Open Sans',system-ui,-apple-system,sans-serif;background:#0D1117;color:#E6EDF3;min-height:100vh;overflow-x:hidden;font-variant-numeric:tabular-nums}
-.layout{display:flex;height:100vh;overflow:hidden}
-.side{width:232px;flex-shrink:0;background:#161B22;border-right:1px solid #21262D;padding:24px 16px;display:flex;flex-direction:column;gap:20px;overflow-y:auto}
+.layout{display:flex;min-height:100vh}
+.side{width:232px;flex-shrink:0;background:#161B22;border-right:1px solid #30363D;padding:24px 16px;display:flex;flex-direction:column;gap:20px;position:sticky;top:0;align-self:flex-start;min-height:100vh}
 .brand{display:flex;align-items:center;gap:12px;padding:0 6px}
 .brand .logo{width:38px;height:38px;border-radius:8px;background:#21262D;border:1px solid #30363D;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1em;color:#E6EDF3;flex-shrink:0}
 .brand h2{margin:0;font-size:1em;color:#E6EDF3;font-weight:600;letter-spacing:.02em}
@@ -1744,8 +1744,8 @@ body{font-family:'Open Sans',system-ui,-apple-system,sans-serif;background:#0D11
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .grid1{margin-bottom:12px}
-.card{background:#161B22;border:1px solid #21262D;border-radius:8px;padding:20px;transition:border-color .12s}
-.card:hover{border-color:#30363D}
+.card{background:#161B22;border:1px solid #30363D;border-radius:8px;padding:20px;transition:border-color .12s}
+.card:hover{border-color:#484F58}
 .card h3{color:#8B949E;margin-bottom:14px;font-size:.75em;text-transform:uppercase;letter-spacing:1px;font-weight:600}
 .stat-val{font-size:2.2em;font-weight:700;color:#E6EDF3;line-height:1.1;font-variant-numeric:tabular-nums}
 .stat-val.accent{color:#58A6FF}
@@ -1756,17 +1756,22 @@ body{font-family:'Open Sans',system-ui,-apple-system,sans-serif;background:#0D11
 .chart-container{position:relative;width:100%;aspect-ratio:1/1;margin:0 auto;max-height:280px}
 .chart-container.tall{width:100%;height:280px;aspect-ratio:auto;max-height:none}
 table{width:100%;border-collapse:collapse;font-size:.8em;font-variant-numeric:tabular-nums}
-th{text-align:left;color:#8B949E;padding:10px 10px;border-bottom:1px solid #21262D;font-weight:600;text-transform:uppercase;font-size:.72em;letter-spacing:.5px}
-td{padding:9px 10px;border-bottom:1px solid #21262D;color:#C9D1D9}
+th{text-align:left;color:#8B949E;padding:10px 10px;border-bottom:1px solid #30363D;font-weight:600;text-transform:uppercase;font-size:.72em;letter-spacing:.5px}
+td{padding:9px 10px;border-bottom:1px solid #30363D;color:#C9D1D9}
 tr:hover{background:rgba(255,255,255,.02)}
-.ok{color:#3FB950;font-weight:600}.err{color:#F85149;font-weight:600}
-.refresh{color:#484F58;font-size:.72em;text-align:center;padding:14px;letter-spacing:.5px}
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72em;font-weight:600}
 .badge-green{background:rgba(63,185,80,.15);color:#3FB950}
+.badge-red{background:rgba(248,81,73,.15);color:#F85149}
+.badge-yellow{background:rgba(210,153,34,.15);color:#D29922}
+.ok{color:#3FB950;font-weight:600}.err{color:#F85149;font-weight:600}
+.refresh{color:#484F58;font-size:.72em;text-align:center;padding:14px;letter-spacing:.5px;display:flex;align-items:center;justify-content:center;gap:8px}
+.refresh-badge{display:inline-flex;align-items:center;gap:5px;background:#161B22;border:1px solid #30363D;border-radius:4px;padding:4px 10px;color:#8B949E;font-size:.72em;font-weight:500}
+.spinner{width:14px;height:14px;border:2px solid #30363D;border-top-color:#58A6FF;border-radius:50%;animation:spin .8s linear infinite;display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
 .set-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px}
 .set-field{display:flex;flex-direction:column;gap:5px}
 .set-field label{color:#8B949E;font-size:.78em;font-weight:500}
-.set-field input{background:#0D1117;border:1px solid #21262D;border-radius:6px;padding:9px 10px;color:#E6EDF3;font-family:inherit;font-size:.88em;outline:none;width:100%;transition:border-color .12s}
+.set-field input{background:#0D1117;border:1px solid #30363D;border-radius:6px;padding:9px 10px;color:#E6EDF3;font-family:inherit;font-size:.88em;outline:none;width:100%;transition:border-color .12s}
 .set-field input:focus{border-color:#58A6FF}
 .set-field small{color:#484F58;font-size:.7em}
 .set-actions{display:flex;align-items:center;gap:12px;margin-top:14px}
@@ -1775,13 +1780,26 @@ tr:hover{background:rgba(255,255,255,.02)}
 #saveSetBtn:disabled{opacity:.5;cursor:not-allowed}
 #setStatus{font-size:.82em;color:#8B949E}
 #setStatus.ok{color:#3FB950}#setStatus.err{color:#F85149}
-.set-info{margin-top:12px;padding-top:10px;border-top:1px solid #21262D;color:#484F58;font-size:.75em}
+.set-info{margin-top:12px;padding-top:10px;border-top:1px solid #30363D;color:#484F58;font-size:.75em}
 .set-info code{color:#79C0FF;background:rgba(56,139,255,.1);padding:2px 6px;border-radius:4px;font-size:.95em}
 .revoke-btn{background:transparent;border:1px solid #F85149;color:#F85149;border-radius:6px;padding:8px 16px;font-family:inherit;font-weight:600;font-size:.8em;cursor:pointer;transition:background .12s}
 .revoke-btn:hover{background:rgba(248,81,73,.1)}
 .revoke-btn:disabled{opacity:.5;cursor:not-allowed}
 .revoke-hint{color:#484F58;font-size:.72em}
-@media(max-width:900px){.layout{flex-direction:column;height:auto;overflow:visible}.side{width:100%;height:auto;flex-direction:row;align-items:center;padding:10px 16px;gap:12px;border-right:none;border-bottom:1px solid #21262D;overflow:visible}.brand>div:last-child span{display:none}.nav{flex-direction:row;flex:1}.nav-item{width:auto;padding:8px 12px}.side-foot{margin:0}.content{padding:14px 16px;overflow:visible}.grid4{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.set-grid{grid-template-columns:repeat(2,1fr)}}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;z-index:999;display:none;align-items:center;justify-content:center;background:rgba(1,4,9,.7);backdrop-filter:blur(4px)}
+.modal-box{background:#161B22;border:1px solid #30363D;border-radius:12px;width:100%;max-width:420px;margin:0 16px;padding:24px;box-shadow:0 16px 48px rgba(0,0,0,.5)}
+.modal-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px}
+.modal-icon{width:44px;height:44px;border-radius:50%;background:rgba(248,81,73,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.modal-icon svg{width:22px;height:22px;color:#F85149;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.modal-title{font-size:1.1em;font-weight:600;color:#E6EDF3}
+.modal-desc{color:#8B949E;font-size:.85em;margin-top:4px;line-height:1.5}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.modal-btn-ghost{background:transparent;color:#E6EDF3;padding:8px 20px;border-radius:6px;border:1px solid #30363D;font-family:inherit;font-size:.85em;font-weight:500;cursor:pointer;transition:background .12s}
+.modal-btn-ghost:hover{background:#1C2128}
+.modal-btn-danger{background:#DA3633;color:#fff;padding:8px 20px;border-radius:6px;border:none;font-family:inherit;font-size:.85em;font-weight:600;cursor:pointer;transition:background .12s}
+.modal-btn-danger:hover{background:#F85149}
+@media(max-width:900px){.layout{flex-direction:column}.side{width:100%;min-height:auto;position:static;flex-direction:row;align-items:center;padding:10px 16px;gap:12px;border-right:none;border-bottom:1px solid #30363D}.brand>div:last-child span{display:none}.nav{flex-direction:row;flex:1}.nav-item{width:auto;padding:8px 12px}.side-foot{margin:0}.content{padding:14px 16px}.grid4{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.set-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:500px){.grid4{grid-template-columns:1fr}.content{padding:14px 10px}.set-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -1799,6 +1817,10 @@ tr:hover{background:rgba(255,255,255,.02)}
 <main class="content">
 
 <section id="tab-stats" class="tab active">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+  <div></div>
+  <div class="refresh-badge"><span class="spinner" id="refreshSpinner"></span><span id="refreshLabel">Auto-refresh: 10s</span></div>
+</div>
 <div class="grid4">
   <div class="card"><h3>Status</h3><div class="stat-val success" id="status">ONLINE</div><div class="stat-label">server status</div></div>
   <div class="card"><h3>Total Requests</h3><div class="stat-val accent" id="requests">-</div><div class="stat-label">since server start</div></div>
@@ -1820,13 +1842,13 @@ tr:hover{background:rgba(255,255,255,.02)}
 <section id="tab-logs" class="tab">
 <div class="grid1"><div class="card">
   <div class="logs-tabs"><button class="logs-tab active" data-log="requests">Requests</button><button class="logs-tab" data-log="errors">Errors</button></div>
-  <div id="logs-requests"><div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Model</th><th>Skill</th><th>RT</th><th>Status</th></tr></thead><tbody id="reqTable"></tbody></table></div></div>
-  <div id="logs-errors" style="display:none"><div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody id="errTable"></tbody></table></div></div>
+  <div id="logs-requests"><div style="overflow-x:auto"><table><thead><tr><th style="padding:8px 10px">Time</th><th style="padding:8px 10px">Model</th><th style="padding:8px 10px">Skill</th><th style="padding:8px 10px">RT</th><th style="padding:8px 10px">Status</th></tr></thead><tbody id="reqTable"></tbody></table></div></div>
+  <div id="logs-errors" style="display:none"><div style="overflow-x:auto"><table><thead><tr><th style="padding:8px 10px">Time</th><th style="padding:8px 10px">Error</th></tr></thead><tbody id="errTable"></tbody></table></div></div>
 </div></div>
 </section>
 
 <section id="tab-demo" class="tab">
-<div class="grid1"><div class="card">
+<div class="grid1"><div class="card" style="max-width:860px">
   <h3>&#9881;&#65039; Pengaturan Demo</h3>
   <div class="set-grid">
     <div class="set-field"><label>Durasi sesi owner (menit)</label><input type="number" id="setOwnerSession"><small>10&ndash;1440 menit</small></div>
@@ -1846,9 +1868,27 @@ tr:hover{background:rgba(255,255,255,.02)}
 </div></div>
 </section>
 
-<div class="refresh">AUTO-REFRESH 10s &middot; yuki-ai.tech</div>
+<div class="refresh"><span class="refresh-badge"><span class="spinner" id="refreshSpinner2"></span><span>Auto-refresh: 10s &middot; yuki-ai.tech</span></span></div>
 </main>
 </div>
+
+<!-- Modal Konfirmasi -->
+<div id="confirmModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-icon"><svg viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg></div>
+      <div>
+        <div class="modal-title" id="modalTitle">Ganti Kunci (Revoke)</div>
+        <div class="modal-desc" id="modalDesc">Kunci lama langsung mati dan kunci baru dikirim ke Telegram.</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn-ghost" id="modalCancelBtn">Batal</button>
+      <button class="modal-btn-danger" id="modalConfirmBtn">Ya, Revoke</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const palette=['#58A6FF','#3FB950','#D29922','#F85149','#A371F7','#79C0FF','#D2A8FF','#7EE787'];
 const chartDefaults={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#C9D1D9',font:{family:'Open Sans',size:12,weight:'500'},padding:16,usePointStyle:true,pointStyleWidth:8}}}};
@@ -1861,16 +1901,19 @@ function makeDonut(data,el){
 }
 function makeBar(labels,values,el){
   if(!labels.length){el.innerHTML='<div style="color:#484F58;text-align:center;padding:40px;font-size:.85em">No data yet</div>';return;}
-  const cfg={type:'bar',data:{labels,datasets:[{label:'Avg RT (s)',data:values,backgroundColor:palette.map(c=>c+'88'),borderColor:palette,borderWidth:1,borderRadius:4}]},options:{...chartDefaults,indexAxis:'y',plugins:{...chartDefaults.plugins,legend:{display:false}},scales:{x:{ticks:{color:'#8B949E'},grid:{color:'#21262D'}},y:{ticks:{color:'#C9D1D9'},grid:{display:false}}}}};
+  const cfg={type:'bar',data:{labels,datasets:[{label:'Avg RT (s)',data:values,backgroundColor:palette.map(c=>c+'88'),borderColor:palette,borderWidth:1,borderRadius:4}]},options:{...chartDefaults,indexAxis:'y',plugins:{...chartDefaults.plugins,legend:{display:false}},scales:{x:{ticks:{color:'#8B949E'},grid:{color:'#30363D'}},y:{ticks:{color:'#C9D1D9'},grid:{display:false}}}}};
   if(el._chart)el._chart.destroy();el._chart=new Chart(el,cfg);
 }
 function makeTimeline(labels,values,el){
   if(!labels.length){el.innerHTML='<div style="color:#484F58;text-align:center;padding:40px;font-size:.85em">No data yet</div>';return;}
-  const cfg={type:'line',data:{labels,datasets:[{label:'Requests',data:values,borderColor:'#58A6FF',backgroundColor:'rgba(56,139,255,.08)',fill:true,tension:.4,borderWidth:2,pointRadius:3,pointBackgroundColor:'#58A6FF'}]},options:{...chartDefaults,plugins:{...chartDefaults.plugins,legend:{display:false}},scales:{x:{ticks:{color:'#8B949E',maxRotation:0},grid:{color:'#21262D'}},y:{ticks:{color:'#8B949E',stepSize:1},grid:{color:'#21262D'},beginAtZero:true}}}};
+  const cfg={type:'line',data:{labels,datasets:[{label:'Requests',data:values,borderColor:'#58A6FF',backgroundColor:'rgba(56,139,255,.08)',fill:true,tension:.4,borderWidth:2,pointRadius:3,pointBackgroundColor:'#58A6FF'}]},options:{...chartDefaults,plugins:{...chartDefaults.plugins,legend:{display:false}},scales:{x:{ticks:{color:'#8B949E',maxRotation:0},grid:{color:'#30363D'}},y:{ticks:{color:'#8B949E',stepSize:1},grid:{color:'#30363D'},beginAtZero:true}}}};
   if(el._chart)el._chart.destroy();el._chart=new Chart(el,cfg);
 }
 let lastData=null;
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function statusBadge(ok){
+  return ok?'<span class="badge badge-green">OK</span>':'<span class="badge badge-red">FAIL</span>';
+}
 function renderStats(d){
   document.getElementById('uptime').textContent='Uptime: '+d.uptime;
   document.getElementById('requests').textContent=d.total_requests;
@@ -1886,15 +1929,25 @@ function renderStats(d){
     makeTimeline(Object.keys(d.hourly_requests).map(k=>k.length>5?k.slice(6):k),Object.values(d.hourly_requests),document.getElementById('timelineChart'));
     makeBar(Object.keys(d.model_avg_rt),Object.values(d.model_avg_rt),document.getElementById('rtChart'));
   }
-  document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td>'+esc(r.time)+'</td><td>'+esc(r.model)+'</td><td>'+(r.skill&&r.skill!=='-'?'<span class="badge badge-green">'+esc(r.skill)+'</span>':'<span style="color:#484F58">-</span>')+'</td><td>'+esc(r.rt)+'</td><td>'+(r.ok?'<span class="ok">OK</span>':'<span class="err">FAIL</span>')+'</td></tr>').join('');
-  document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap">'+esc(r.time)+'</td><td class="err">'+esc(r.error)+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#484F58;text-align:center;padding:16px">No errors</td></tr>';
+  document.getElementById('reqTable').innerHTML=d.recent_requests.slice(0,15).map(r=>'<tr><td style="padding:8px 10px">'+esc(r.time)+'</td><td style="padding:8px 10px">'+esc(r.model)+'</td><td style="padding:8px 10px">'+(r.skill&&r.skill!=='-'?'<span class="badge badge-green">'+esc(r.skill)+'</span>':'<span style="color:#484F58">-</span>')+'</td><td style="padding:8px 10px">'+esc(r.rt)+'</td><td style="padding:8px 10px">'+statusBadge(r.ok)+'</td></tr>').join('');
+  document.getElementById('errTable').innerHTML=d.recent_errors.slice(0,10).map(r=>'<tr><td style="white-space:nowrap;padding:8px 10px">'+esc(r.time)+'</td><td style="padding:8px 10px" class="err"><span class="badge badge-red">ERROR</span> '+esc(r.error)+'</td></tr>').join('')||'<tr><td colspan="2" style="color:#484F58;text-align:center;padding:16px">No errors</td></tr>';
 }
+let refreshing=false;
 async function refresh(){
+  if(refreshing)return;
+  refreshing=true;
+  document.getElementById('refreshSpinner').style.display='inline-block';
+  document.getElementById('refreshSpinner2').style.display='inline-block';
   try{
     const r=await fetch('/stats');const d=await r.json();
     lastData=d;renderStats(d);
     document.getElementById('status').textContent='ONLINE';document.getElementById('status').className='stat-val success';
-  }catch(e){document.getElementById('status').textContent='OFFLINE';document.getElementById('status').className='stat-val danger';}
+  }catch(e){
+    document.getElementById('status').textContent='OFFLINE';document.getElementById('status').className='stat-val danger';
+  }
+  document.getElementById('refreshSpinner').style.display='none';
+  document.getElementById('refreshSpinner2').style.display='none';
+  refreshing=false;
 }
 function switchTab(name){
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
@@ -1941,8 +1994,28 @@ document.querySelectorAll('.logs-tab').forEach(b=>b.addEventListener('click',()=
   document.getElementById('logs-errors').style.display=isReq?'none':'block';
 }));
 loadSettings();
+
+// Modal konfirmasi untuk Revoke Key
+const modalOverlay=document.getElementById('confirmModal');
+const modalCancelBtn=document.getElementById('modalCancelBtn');
+const modalConfirmBtn=document.getElementById('modalConfirmBtn');
+let revokeResolve=null;
+
+function showModal(title,desc){
+  document.getElementById('modalTitle').textContent=title;
+  document.getElementById('modalDesc').textContent=desc;
+  modalOverlay.style.display='flex';
+  return new Promise(resolve=>{revokeResolve=resolve;});
+}
+function hideModal(){modalOverlay.style.display='none';revokeResolve=null;}
+modalCancelBtn.addEventListener('click',()=>{hideModal();if(revokeResolve)revokeResolve(false);});
+modalConfirmBtn.addEventListener('click',()=>{hideModal();if(revokeResolve)revokeResolve(true);});
+modalOverlay.addEventListener('click',e=>{if(e.target===modalOverlay){hideModal();if(revokeResolve)revokeResolve(false);}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modalOverlay.style.display==='flex'){hideModal();if(revokeResolve)revokeResolve(false);}});
+
 document.getElementById('revokeKeyBtn').addEventListener('click',async()=>{
-  if(!confirm('Ganti kunci owner sekarang? Kunci lama langsung mati dan kunci baru dikirim ke Telegram.'))return;
+  const ok=await showModal('Ganti Kunci (Revoke)','Kunci lama langsung mati dan kunci baru dikirim ke Telegram.');
+  if(!ok)return;
   const st=document.getElementById('setStatus'),b=document.getElementById('revokeKeyBtn');
   b.disabled=true;
   try{
