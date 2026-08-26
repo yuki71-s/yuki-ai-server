@@ -1952,6 +1952,7 @@ async function refresh(){
 function switchTab(name){
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
   document.querySelectorAll('.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+name));
+  document.querySelector('.content').scrollTop=0;
   if((name==='stats'||name==='logs')&&lastData)renderStats(lastData);
 }
 const SET_FIELDS=[['owner_session_min','setOwnerSession'],['key_interval_min','setKeyInterval'],['limit_per_ip','setLimitIp'],['global_daily','setGlobalDaily']];
