@@ -1734,13 +1734,10 @@ body{font-family:'Open Sans',system-ui,-apple-system,sans-serif;background:#0D11
 .side-foot{margin-top:auto;padding:0 6px;color:#484F58;font-size:.75em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .side-foot .logout{margin-left:auto;color:#484F58;text-decoration:none;font-size:1.2em;line-height:1;transition:color .12s}
 .side-foot .logout:hover{color:#F85149}
-#tab-logs .logs-tabs{display:flex;gap:4px;margin-bottom:12px}
-#tab-logs .logs-tab{background:transparent;border:none;color:#8B949E;padding:6px 14px;border-radius:5px;font-family:inherit;font-size:.78em;font-weight:600;cursor:pointer;transition:all .12s}
-#tab-logs .logs-tab:hover{color:#E6EDF3}
-#tab-logs .logs-tab.active{background:rgba(56,139,255,.1);color:#58A6FF}
-#tab-logs .card{padding:0;overflow:hidden}
-#tab-logs table{margin:0}
-#tab-logs th{position:sticky;top:0;background:#161B22;z-index:1}
+.logs-tabs{display:flex;gap:4px;margin-bottom:14px}
+.logs-tab{background:transparent;border:none;color:#8B949E;padding:5px 12px;border-radius:5px;font-family:inherit;font-size:.75em;font-weight:600;cursor:pointer;transition:all .12s}
+.logs-tab:hover{color:#E6EDF3}
+.logs-tab.active{background:rgba(56,139,255,.1);color:#58A6FF}
 .content{flex:1;padding:24px 28px;max-width:1280px;margin:0 auto;width:100%;min-width:0}
 .tab{display:none}.tab.active{display:block}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
@@ -1821,8 +1818,8 @@ tr:hover{background:rgba(255,255,255,.02)}
 </section>
 
 <section id="tab-logs" class="tab">
-<div class="logs-tabs"><button class="logs-tab active" data-log="requests">Requests</button><button class="logs-tab" data-log="errors">Errors</button></div>
 <div class="grid1"><div class="card">
+  <div class="logs-tabs"><button class="logs-tab active" data-log="requests">Requests</button><button class="logs-tab" data-log="errors">Errors</button></div>
   <div id="logs-requests"><div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Model</th><th>Skill</th><th>RT</th><th>Status</th></tr></thead><tbody id="reqTable"></tbody></table></div></div>
   <div id="logs-errors" style="display:none"><div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Error</th></tr></thead><tbody id="errTable"></tbody></table></div></div>
 </div></div>
